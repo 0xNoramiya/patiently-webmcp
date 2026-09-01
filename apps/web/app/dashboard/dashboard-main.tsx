@@ -15,6 +15,11 @@ import {
   type TicketDetail,
 } from '@/lib/types';
 import { cn, formatRelative } from '@/lib/utils';
+import {
+  AgentActivityPanel,
+  AgentApprovalDialog,
+} from '@/components/AgentActivityPanel';
+import { useClinicianTools } from './webmcp-clinician-tools';
 import { NotesWidget } from './notes-widget';
 import { PrescriptionsWidget } from './prescriptions-widget';
 import { RemindersPanel } from './reminders-panel';
@@ -124,6 +129,22 @@ export function DashboardMain({
     }, 3000);
     return () => clearInterval(id);
   }, [intakeSession, selectedTicketId]);
+
+  // Expose the clinic floor to the clinician's agent. Registered here so the
+  // tools close over live dashboard state and can drive the same UI the
+  // clinician is looking at.
+  useClinicianTools({
+    adminPassword,
+    queue,
+    activePoli,
+    setActivePoli,
+    selectedTicketId,
+    setSelectedTicketId,
+    ticketDetail,
+    intakeSession,
+    refreshQueue,
+    refreshDetail,
+  });
 
   function pushToast(t: Toast) {
     setToasts((cur) => [...cur, t]);
@@ -260,6 +281,7 @@ export function DashboardMain({
               />
             ))}
           </div>
+          <AgentActivityPanel className="shrink-0 border-t border-ink-100" />
         </aside>
 
         <section className="col-span-7 xl:col-span-8 card overflow-hidden flex flex-col">
@@ -294,6 +316,8 @@ export function DashboardMain({
           </div>
         ))}
       </div>
+
+      <AgentApprovalDialog />
     </main>
   );
 }

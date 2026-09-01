@@ -1,5 +1,7 @@
 'use client';
 
+import { AgentSessionProvider } from '@/lib/webmcp/agent-session';
+
 import { DashboardMain } from './dashboard-main';
 
 // Demo build — no sign-in. The clinician dashboard endpoints still require
@@ -10,5 +12,9 @@ const DEMO_PASSWORD =
   process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'clinic2026';
 
 export function DashboardShell() {
-  return <DashboardMain adminPassword={DEMO_PASSWORD} onLogout={() => {}} />;
+  return (
+    <AgentSessionProvider>
+      <DashboardMain adminPassword={DEMO_PASSWORD} onLogout={() => {}} />
+    </AgentSessionProvider>
+  );
 }
