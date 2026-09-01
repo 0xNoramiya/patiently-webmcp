@@ -5,11 +5,49 @@
 > work alongside their own AI agent — through WebMCP tools the page itself
 > exposes, in the session they are already signed into.
 
-[![Live demo](https://img.shields.io/badge/Live%20demo-patiently.vercel.app-0e8265)](https://patiently.vercel.app)
+[![Live demo](https://img.shields.io/badge/Live%20demo-patiently--webmcp.vercel.app-0e8265)](https://patiently-webmcp.vercel.app)
 [![WebMCP Challenge](https://img.shields.io/badge/OpenAI-WebMCP%20Challenge%202026-10b981)](https://webmcp.devpost.com)
 [![Tools](https://img.shields.io/badge/WebMCP%20tools-17-0e8265)](#the-tool-surface)
 [![Evals](https://img.shields.io/badge/evals-38%20passing-10b981)](#evals)
 [![License](https://img.shields.io/badge/License-MIT-cbd5e1)](LICENSE)
+
+---
+
+## Try it live
+
+**https://patiently-webmcp.vercel.app**
+
+Open it in a WebMCP-capable browser — the **ChatGPT desktop app's in-app
+browser** (WebMCP is on by default), or **Chrome 149+** with
+`chrome://flags/#enable-webmcp-testing` enabled and restarted. No login is
+required; the demo build ships the clinician dashboard unlocked.
+
+| Surface | URL | Tools |
+| --- | --- | --- |
+| Clinician dashboard | [`/dashboard`](https://patiently-webmcp.vercel.app/dashboard) | 11 |
+| Patient queue + intake | `/p/<ticket-id>` — open a patient from the dashboard queue | 6 |
+
+The dashboard's **Agent activity** panel reads `17 tools live` when WebMCP is
+detected and `WebMCP not detected` otherwise, so you can confirm your browser
+is set up correctly before asking the agent anything.
+
+**Ask your agent, on `/dashboard`:**
+- *"Who's on the clinic floor right now?"*
+- *"Anyone with a red flag? Pull their chart."*
+- *"Record BP 210 over 125, heart rate 122, sats 88."* — an approval dialog
+  opens and the agent blocks until you click.
+- *"Draft a SOAP note and prescriptions, then check for interactions."*
+- *"Sign the amoxicillin."* — a second dialog, showing the interaction warning
+  at the moment of signing.
+
+**Ask your agent, on a patient page:**
+- *"How long is my wait?"*
+- *"Tell the clinic my chest has hurt since this morning and it spreads to my
+  left arm."* — watch triage escalate the ticket from the server side.
+
+> The demo database reseeds to a known state on deploy. If the floor looks
+> picked-over from another visitor, the read tools still work; the queue simply
+> reflects whatever the last person did.
 
 ---
 
@@ -367,7 +405,7 @@ Browser (ChatGPT in-app / Chrome 149+)
 | Database | PostgreSQL 16 |
 | Models | OpenAI with Structured Outputs |
 | Realtime | Server-Sent Events |
-| Hosting | Vercel (web) · Fly.io (API + Postgres) |
+| Hosting | Vercel (web) · Fly.io (API + Postgres, Singapore) |
 
 ---
 
