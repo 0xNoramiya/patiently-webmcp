@@ -21,7 +21,7 @@ from app.agents.context import (
     render_patient_block,
     render_previous_visit_block,
 )
-from app.agents.gemini_client import generate_json
+from app.integrations.openai_client import generate_json
 from app.agents.schemas import SUMMARY_SCHEMA
 from app.models.intake import IntakeMessage, IntakeSession, MessageRole
 from app.models.queue_ticket import QueueTicket

@@ -2,7 +2,7 @@
 interaction matcher across the merged pool.
 
 Sources:
-  1. PrescriptionDraft rows (the drugs the Featherless Rx agent just
+  1. PrescriptionDraft rows (the drugs the Rx agent just
      suggested).
   2. The intake session's `structured_data.medications_taken_today`
      (what the patient told the agent they were taking today).

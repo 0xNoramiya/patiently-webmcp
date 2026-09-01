@@ -1,4 +1,4 @@
-"""Gemini response_schema definitions for each agent.
+"""Structured-output schema definitions for each agent.
 
 Patiently uses three agents in a pipeline:
   - Intake Agent: conversational; no triage responsibility.

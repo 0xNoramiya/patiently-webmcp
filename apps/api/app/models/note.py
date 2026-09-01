@@ -1,4 +1,4 @@
-"""SOAP-format consultation note drafted by the Notes Agent (Featherless)
+"""SOAP-format consultation note drafted by the Notes Agent
 after a consultation ends. One per ticket; latest wins."""
 from __future__ import annotations
 

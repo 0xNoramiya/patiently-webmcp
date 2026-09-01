@@ -1,4 +1,4 @@
-"""Prescription drafts service — orchestrates Featherless drafting,
+"""Prescription drafts service — orchestrates Rx drafting,
 persistence (one-write-replaces-existing), and approval."""
 from __future__ import annotations
 
@@ -62,7 +62,7 @@ async def draft_for_ticket(ticket_id: uuid.UUID) -> list[dict]:
                 duration_days=item["duration_days"],
                 instructions=item.get("instructions"),
                 rationale=item.get("rationale"),
-                source="featherless",
+                source="openai",
                 approved=False,
             )
             rows.append(row)

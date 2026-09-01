@@ -11,7 +11,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
-from app.agents.gemini_client import generate_json
+from app.integrations.openai_client import generate_json
 from app.agents.schemas import TRIAGE_RESPONSE_SCHEMA
 
 _PROMPT_PATH = os.path.join(

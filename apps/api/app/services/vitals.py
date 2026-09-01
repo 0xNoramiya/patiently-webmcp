@@ -3,7 +3,7 @@
 Persists triage-nurse measurements and detects critical findings using
 standard adult outpatient thresholds. The findings list is used by both
 the dashboard (visual warning) and the SOAP note drafter (input to
-Featherless).
+the Notes Agent).
 """
 from __future__ import annotations
 

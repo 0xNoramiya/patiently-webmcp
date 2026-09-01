@@ -1,4 +1,4 @@
-"""Notes service — orchestrates Featherless SOAP note drafting per ticket."""
+"""Notes service — orchestrates SOAP note drafting per ticket."""
 from __future__ import annotations
 
 import logging

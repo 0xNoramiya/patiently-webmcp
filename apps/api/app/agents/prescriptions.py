@@ -1,5 +1,5 @@
 """Prescription Agent — turns the SOAP Plan + patient context into a typed
-list of prescription drafts via Featherless.
+list of prescription drafts.
 
 Llama-3.1-8B handles JSON-only output well when you ask explicitly and give
 a tight schema. We add a tolerant JSON extractor so a stray ```json fence or
@@ -12,7 +12,7 @@ import logging
 import re
 from typing import Any
 
-from app.integrations import featherless
+from app.integrations import openai_client
 
 logger = logging.getLogger(__name__)
 
@@ -134,7 +134,7 @@ async def draft_prescriptions(
     user = build_user_prompt(
         patient_block, summary, soap_plan, previous_rx_block
     )
-    text = await featherless.chat(
+    text = await openai_client.chat(
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user},

@@ -9,7 +9,7 @@ physician can print, sign, and clip to the paper chart (or attach to an EMR):
   - pre-visit summary written by the Summarizer Agent
   - follow-up delta when applicable
   - speaker-diarized consultation transcript (truncated)
-  - SOAP note drafted by Featherless
+  - SOAP note drafted by the Notes Agent
   - footer disclaimer
 
 Built with ReportLab platypus — no system binaries needed, ships in the

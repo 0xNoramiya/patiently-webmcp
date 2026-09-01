@@ -25,7 +25,7 @@ from app.agents.context import (
     render_patient_block,
     render_previous_visit_block,
 )
-from app.agents.gemini_client import generate_json
+from app.integrations.openai_client import generate_json
 from app.agents.schemas import INTAKE_RESPONSE_SCHEMA
 from app.agents.triage_agent import classify_turn
 from app.models.intake import IntakeMessage, IntakeSession, IntakeStatus, MessageRole
@@ -124,7 +124,7 @@ async def _build_emr_context(db: AsyncSession, ticket: QueueTicket) -> str:
     return "\n".join(parts)
 
 
-def _to_gemini_history(messages: list[IntakeMessage]) -> list[dict[str, Any]]:
+def _to_chat_history(messages: list[IntakeMessage]) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for m in messages:
         if m.role == MessageRole.system:
@@ -271,7 +271,7 @@ async def respond(
     history_msgs = sorted(
         list(session.messages) + [patient_msg], key=lambda m: m.created_at or m.id.bytes
     )
-    gemini_history = _to_gemini_history(history_msgs)
+    chat_history = _to_chat_history(history_msgs)
     plain_history = _render_plain_history(history_msgs[:-1])  # without current turn
 
     intake_contents = [
@@ -279,7 +279,7 @@ async def respond(
             "role": "user",
             "parts": [{"text": emr_context + "\n\n=== CONVERSATION ==="}],
         },
-        *gemini_history,
+        *chat_history,
     ]
 
     # === RUN AGENTS IN PARALLEL ===

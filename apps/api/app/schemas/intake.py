@@ -33,7 +33,7 @@ class PatientMessageIn(BaseModel):
 
 
 class AgentResponse(BaseModel):
-    """Schema Gemini must return on every turn."""
+    """Schema the Intake Agent must return on every turn."""
 
     reply_text: str
     extracted_fields: dict[str, Any] = {}

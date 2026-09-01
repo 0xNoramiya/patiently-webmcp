@@ -1,4 +1,4 @@
-"""Notes Agent — drafts a SOAP-format consultation note via Featherless.
+"""Notes Agent — drafts a SOAP-format consultation note.
 
 Inputs: patient profile + pre-visit summary (from Summarizer Agent) +
 transcript text (from Speechmatics, if available) + previous-visit context.
@@ -13,7 +13,7 @@ import logging
 import re
 from typing import Any
 
-from app.integrations import featherless
+from app.integrations import openai_client
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +112,7 @@ async def draft_note(
     user = build_user_prompt(
         patient_block, intake_summary, transcript_text, previous_visit_block
     )
-    text = await featherless.chat(
+    text = await openai_client.chat(
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user},
@@ -121,4 +121,4 @@ async def draft_note(
         temperature=0.4,
     )
     parsed = parse_soap(text)
-    return {**parsed, "raw_response": text, "model_used": "featherless"}
+    return {**parsed, "raw_response": text, "model_used": "openai"}

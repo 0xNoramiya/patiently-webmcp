@@ -1,4 +1,4 @@
-"""Prescription drafts emitted by the Prescription Agent (Featherless).
+"""Prescription drafts emitted by the Prescription Agent.
 
 One row per drug; many rows per ticket. The doctor reviews, optionally
 edits, and approves — `approved` flips the row from a suggestion to a
@@ -38,7 +38,7 @@ class PrescriptionDraft(Base):
     instructions: Mapped[str | None] = mapped_column(Text, nullable=True)
     rationale: Mapped[str | None] = mapped_column(Text, nullable=True)
     source: Mapped[str] = mapped_column(
-        String(40), nullable=False, default="featherless"
+        String(40), nullable=False, default="openai"
     )
     approved: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False

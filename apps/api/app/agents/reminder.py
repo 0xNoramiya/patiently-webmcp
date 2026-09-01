@@ -1,4 +1,4 @@
-"""Reminder Agent — generates friendly appointment nudges via Featherless.
+"""Reminder Agent — generates friendly appointment nudges via OpenAI.
 
 Runs on a cron schedule. For each reminder whose scheduled_for has passed,
 we ask a small open-source model to draft a 2-sentence SMS-style message
@@ -7,7 +7,7 @@ that:
   - mentions the appointment date + reason
   - references the previous visit when available
 
-Featherless is OpenAI-compatible, so we just send a system+user message
+A short system+user message is all this needs
 pair.
 """
 from __future__ import annotations
@@ -16,7 +16,7 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from app.integrations import featherless
+from app.integrations import openai_client
 from app.models.patient import Patient
 from app.models.reminder import AppointmentReminder
 from app.models.visit import Visit
@@ -75,9 +75,9 @@ async def generate_message(
     patient: Patient,
     previous_visit: Visit | None = None,
 ) -> dict[str, Any]:
-    """Call Featherless. Returns {message, model_used}."""
+    """Call the model. Returns {message, model_used}."""
     user = build_user_prompt(reminder, patient, previous_visit)
-    text = await featherless.chat(
+    text = await openai_client.chat(
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user},
@@ -87,4 +87,4 @@ async def generate_message(
     )
     # Strip any accidental markdown emphasis the model might add.
     cleaned = text.replace("**", "").strip().strip('"').strip()
-    return {"message": cleaned, "model_used": "featherless"}
+    return {"message": cleaned, "model_used": "openai"}
