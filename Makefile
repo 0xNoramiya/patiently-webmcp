@@ -22,7 +22,7 @@ api-shell: ## Open a Python shell inside the API container
 	docker compose -f infra/docker-compose.yml --env-file infra/.env exec api python
 
 db-shell: ## Open psql against the demo DB
-	docker compose -f infra/docker-compose.yml --env-file infra/.env exec db psql -U antricare -d antricare
+	docker compose -f infra/docker-compose.yml --env-file infra/.env exec db psql -U patiently -d patiently
 
 # === Builds ===
 

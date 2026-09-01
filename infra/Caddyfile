@@ -1,4 +1,4 @@
-# Replace antricare.example.com with your actual domain on Vultr.
+# Replace patiently.example.com with your actual domain for your deployment.
 # For local testing, use `localhost` and Caddy will serve over HTTP only.
 
 {$DOMAIN:localhost} {

@@ -17,4 +17,6 @@ COPY . .
 
 EXPOSE 8000
 
+# Migrations run here for docker-compose; on Fly they run as release_command
+# instead, so they execute once per deploy rather than once per machine.
 CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
