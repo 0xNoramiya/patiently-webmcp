@@ -30,8 +30,7 @@ jobs:
       - name: Import smoke test
         working-directory: apps/api
         env:
-          GEMINI_API_KEY: ""
-          FEATHERLESS_API_KEY: ""
+          OPENAI_API_KEY: ""
           SPEECHMATICS_API_KEY: ""
         run: |
           python -c "from app.main import app; print(f'app imported with {len(app.routes)} routes')"
@@ -39,13 +38,12 @@ jobs:
       - name: Unit tests
         working-directory: apps/api
         env:
-          GEMINI_API_KEY: ""
-          FEATHERLESS_API_KEY: ""
+          OPENAI_API_KEY: ""
           SPEECHMATICS_API_KEY: ""
         run: pytest -q tests/
 
   web:
-    name: Web · build
+    name: Web · typecheck + build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -61,8 +59,93 @@ jobs:
         working-directory: apps/web
         run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
 
+      - name: Typecheck
+        working-directory: apps/web
+        run: npx tsc --noEmit
+
       - name: Build
         working-directory: apps/web
-        env:
-          NEXT_PUBLIC_API_URL: http://localhost:8000
         run: npm run build
+
+  webmcp-evals:
+    name: WebMCP · tool evals
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: patiently
+          POSTGRES_PASSWORD: patiently
+          POSTGRES_DB: patiently
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U patiently -d patiently"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql+asyncpg://patiently:patiently@localhost:5432/patiently
+      SYNC_DATABASE_URL: postgresql://patiently:patiently@localhost:5432/patiently
+      ADMIN_PASSWORD: clinic2026
+      # Deliberately empty: the eval suite exercises the tool surface, the
+      # approval gate and the trust annotations, none of which should need a
+      # model call. Agent paths degrade to stubs.
+      OPENAI_API_KEY: ""
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: apps/api/requirements.txt
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install API
+        working-directory: apps/api
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Migrate + seed
+        working-directory: apps/api
+        run: |
+          alembic upgrade head
+          python -m seed.demo_scenarios
+
+      - name: Start API
+        working-directory: apps/api
+        run: |
+          uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8000/health && break || sleep 1
+          done
+
+      - name: Install web
+        working-directory: apps/web
+        run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
+
+      - name: Install Playwright Chromium
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+
+      - name: Build + start web
+        working-directory: apps/web
+        env:
+          INTERNAL_API_URL: http://localhost:8000
+        run: |
+          npm run build
+          npm run start &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3000/ >/dev/null && break || sleep 1
+          done
+
+      - name: Run WebMCP evals
+        working-directory: apps/web
+        run: npm run eval
