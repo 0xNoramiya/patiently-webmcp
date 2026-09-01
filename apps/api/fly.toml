@@ -28,6 +28,10 @@ primary_region = "sin"
   min_machines_running = 1
   processes = ["app"]
 
+# One machine on purpose. Each instance opens its own connection pool
+# against a single-node Postgres, and a demo does not need HA — deploy
+# with `fly deploy --ha=false` to keep Fly from adding a standby.
+
   [http_service.concurrency]
     type = "requests"
     hard_limit = 250

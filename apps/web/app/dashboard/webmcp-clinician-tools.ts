@@ -88,18 +88,31 @@ function allEntries(q: QueueState): QueueEntry[] {
   return [...q.waiting, ...q.in_intake, ...q.intake_complete, ...q.in_consultation];
 }
 
-/** Fetch every department's queue in parallel. */
-async function fetchAllQueues(): Promise<Array<[Poli, QueueState]>> {
+/**
+ * Fetch every department's queue in parallel.
+ *
+ * A partial failure is reported, not swallowed. If one department's queue is
+ * unreachable, telling the agent "no such patient" would be a lie that reads
+ * as a clinical fact — the patient may well be there, behind a 500. The caller
+ * surfaces `failed` so the agent can say the floor data is incomplete.
+ */
+async function fetchAllQueues(): Promise<{
+  queues: Array<[Poli, QueueState]>;
+  failed: Poli[];
+}> {
   const results = await Promise.all(
-    POLI_LIST.map(async (p): Promise<[Poli, QueueState] | null> => {
+    POLI_LIST.map(async (p): Promise<[Poli, QueueState] | Poli> => {
       try {
         return [p, await api.getQueue(p)];
       } catch {
-        return null;
+        return p;
       }
     })
   );
-  return results.filter((r): r is [Poli, QueueState] => r !== null);
+  return {
+    queues: results.filter((r): r is [Poli, QueueState] => Array.isArray(r)),
+    failed: results.filter((r): r is Poli => !Array.isArray(r)),
+  };
 }
 
 /**
@@ -111,31 +124,38 @@ async function fetchAllQueues(): Promise<Array<[Poli, QueueState]>> {
  */
 async function resolveTicket(
   ref: string
-): Promise<{ entry: QueueEntry; poli: Poli } | null> {
+): Promise<{ entry: QueueEntry; poli: Poli; failed: Poli[] } | { failed: Poli[] }> {
   const needle = ref.trim().toLowerCase();
-  const queues = await fetchAllQueues();
+  const { queues, failed } = await fetchAllQueues();
 
   for (const [poli, q] of queues) {
     for (const e of allEntries(q)) {
-      if (e.ticket.ticket_number.toLowerCase() === needle) return { entry: e, poli };
+      if (e.ticket.ticket_number.toLowerCase() === needle)
+        return { entry: e, poli, failed };
     }
   }
   for (const [poli, q] of queues) {
     for (const e of allEntries(q)) {
-      if (e.patient.name.toLowerCase().includes(needle)) return { entry: e, poli };
+      if (e.patient.name.toLowerCase().includes(needle))
+        return { entry: e, poli, failed };
     }
   }
-  return null;
+  return { failed };
 }
 
 async function requireTicket(ref: string) {
   const found = await resolveTicket(ref);
-  if (!found) {
+  if ('entry' in found) return found;
+
+  if (found.failed.length) {
     throw new Error(
-      `No active patient matching "${ref}". Call list_patient_queue to see who is on the floor.`
+      `Could not search ${found.failed.map((p) => POLI_LABEL[p]).join(', ')} — ` +
+        `the clinic system did not respond. "${ref}" may still be waiting there. Retry before concluding anything.`
     );
   }
-  return found;
+  throw new Error(
+    `No active patient matching "${ref}". Call list_patient_queue to see who is on the floor.`
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -182,8 +202,13 @@ export function useClinicianTools(deps: ClinicianToolDeps) {
       label: (i) =>
         i?.only_flagged ? 'Listed flagged patients' : 'Listed the patient queue',
       execute: async ({ poli, only_flagged }) => {
-        const queues = poli
-          ? [[poli as Poli, await api.getQueue(poli as Poli)] as [Poli, QueueState]]
+        const { queues, failed } = poli
+          ? {
+              queues: [
+                [poli as Poli, await api.getQueue(poli as Poli)] as [Poli, QueueState],
+              ],
+              failed: [] as Poli[],
+            }
           : await fetchAllQueues();
 
         const blocks: string[] = [];
@@ -202,12 +227,19 @@ export function useClinicianTools(deps: ClinicianToolDeps) {
           );
         }
 
+        const warning = failed.length
+          ? `\n\n⚠ Could not reach ${failed
+              .map((p) => POLI_LABEL[p])
+              .join(', ')} — this list is incomplete.`
+          : '';
+
         if (!total) {
-          return only_flagged
+          const empty = only_flagged
             ? 'No patients currently have a triage red flag.'
             : 'The queue is empty — no patients are waiting.';
+          return `${empty}${warning}`;
         }
-        return `${total} patient(s) on the floor.\n\n${blocks.join('\n\n')}`;
+        return `${total} patient(s) on the floor.\n\n${blocks.join('\n\n')}${warning}`;
       },
     },
 

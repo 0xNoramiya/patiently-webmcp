@@ -218,12 +218,24 @@ async function main() {
 
   // -----------------------------------------------------------------------
   section('Patient surface');
-  const ticketId = await page.evaluate(async () => {
-    const res = await fetch('/api/queue/umum');
-    const q = await res.json();
-    return q.waiting[0]?.ticket?.id ?? q.in_intake[0]?.ticket?.id;
+  const ticketLookup = await page.evaluate(async () => {
+    try {
+      const res = await fetch('/api/queue/umum');
+      if (!res.ok) return { error: `HTTP ${res.status}` };
+      const q = await res.json();
+      const id = q.waiting[0]?.ticket?.id ?? q.in_intake[0]?.ticket?.id;
+      return id ? { id } : { error: 'queue is empty — is the demo data seeded?' };
+    } catch (err) {
+      return { error: err.message };
+    }
   });
-  check('resolved a seeded patient ticket id', !!ticketId, ticketId);
+  check('resolved a seeded patient ticket id', !!ticketLookup.id, ticketLookup.error);
+  if (!ticketLookup.id) {
+    console.log('\n\x1b[31mCannot continue without a seeded ticket.\x1b[0m');
+    await browser.close();
+    process.exit(1);
+  }
+  const ticketId = ticketLookup.id;
 
   await page.goto(`${BASE}/p/${ticketId}`, { waitUntil: 'domcontentloaded' });
   await waitForTools(page, 6);

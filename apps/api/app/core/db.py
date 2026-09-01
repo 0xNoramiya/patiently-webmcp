@@ -10,12 +10,19 @@ from app.core.config import get_settings
 
 settings = get_settings()
 
+# Pool sizing is deliberately modest and recycled often. In production the
+# API sits behind a proxy that closes idle connections, and asyncpg surfaces
+# that as ConnectionDoesNotExistError on the next checkout. pool_pre_ping
+# catches an already-dead connection; pool_recycle stops us from holding one
+# long enough for the proxy to kill it in the first place.
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=False,
     pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=20,
+    pool_size=5,
+    max_overflow=10,
+    pool_recycle=300,
+    pool_timeout=30,
 )
 
 SessionLocal = async_sessionmaker(
