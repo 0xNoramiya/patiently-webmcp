@@ -1,0 +1,15 @@
+# Replace antricare.example.com with your actual domain on Vultr.
+# For local testing, use `localhost` and Caddy will serve over HTTP only.
+
+{$DOMAIN:localhost} {
+    encode gzip
+
+    @api path /api/* /health
+    handle @api {
+        reverse_proxy api:8000
+    }
+
+    handle {
+        reverse_proxy web:3000
+    }
+}

@@ -1,0 +1,22 @@
+node_modules
+.next
+.next/
+.turbo
+*.log
+__pycache__
+*.pyc
+.venv
+venv
+.env
+.env.local
+.env.*.local
+infra/.env
+.DS_Store
+dist
+build
+.coverage
+.claude/
+*.tsbuildinfo
+# Runtime-generated artifacts served from /api/static/* — recreated on demand
+apps/api/static/audio/
+apps/api/static/photos/

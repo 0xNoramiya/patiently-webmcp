@@ -1,0 +1,67 @@
+name: antricare
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: antricare
+      POSTGRES_PASSWORD: antricare
+      POSTGRES_DB: antricare
+    volumes:
+      - antricare_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U antricare -d antricare"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "5433:5432"
+
+  api:
+    build:
+      context: ../apps/api
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - ./.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://antricare:antricare@db:5432/antricare
+      SYNC_DATABASE_URL: postgresql://antricare:antricare@db:5432/antricare
+    ports:
+      - "8000:8000"
+
+  web:
+    build:
+      context: ../apps/web
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:-}
+      INTERNAL_API_URL: http://api:8000
+    ports:
+      - "3000:3000"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - web
+      - api
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  antricare_pg:
+  caddy_data:
+  caddy_config:
