@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 
 import { Logo } from '@/components/Logo';
 import { api } from '@/lib/api';
+import { INTAKE_UPDATED_EVENT } from '../webmcp-patient-tools';
 import type { IntakeMessage, IntakeSession, TicketDetail } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { ExtractedChips } from './extracted-chips';
@@ -62,6 +63,17 @@ export function IntakeChat({ ticket, poliLabel }: Props) {
       scrollerRef.current.scrollTop = scrollerRef.current.scrollHeight;
     }
   }, [session?.messages.length, sending]);
+
+  // An agent can drive intake through the WebMCP `describe_symptoms` tool.
+  // When it does, the patient is often still looking at this screen — so pull
+  // the session immediately rather than waiting for the next poll.
+  useEffect(() => {
+    const onAgentWrite = () => {
+      api.getSession(ticket.id).then(setSession).catch(() => {});
+    };
+    window.addEventListener(INTAKE_UPDATED_EVENT, onAgentWrite);
+    return () => window.removeEventListener(INTAKE_UPDATED_EVENT, onAgentWrite);
+  }, [ticket.id]);
 
   async function handleSend() {
     const text = input.trim();
