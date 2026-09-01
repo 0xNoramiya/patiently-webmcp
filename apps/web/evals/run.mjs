@@ -113,7 +113,14 @@ async function main() {
   await context.addInitScript(STUB);
   const page = await context.newPage();
 
-  page.on('pageerror', (e) => console.log(`  \x1b[33m! page error:\x1b[0m ${e.message}`));
+  // Page errors are a failure, not a warning. React hydration mismatches show
+  // up here and nowhere else, and a mismatch means the agent may be reading a
+  // DOM that does not match what the clinician is actually looking at.
+  const pageErrors = [];
+  page.on('pageerror', (e) => {
+    pageErrors.push(e.message);
+    console.log(`  \x1b[33m! page error:\x1b[0m ${e.message}`);
+  });
 
   // -----------------------------------------------------------------------
   section('Clinician surface — registration');
@@ -283,6 +290,19 @@ async function main() {
   await page.waitForTimeout(1200);
   const afterLeave = await listTools(page);
   check('tools unregister when their surface unmounts', afterLeave.length === 0, `${afterLeave.length} left: ${afterLeave.map((t) => t.name).join(', ')}`);
+
+  section('Page health');
+  const hydrationErrors = pageErrors.filter((m) => /Minified React error #(418|423|425)|hydrat/i.test(m));
+  check(
+    'no React hydration mismatches',
+    hydrationErrors.length === 0,
+    hydrationErrors[0]
+  );
+  check(
+    `no uncaught page errors (${pageErrors.length})`,
+    pageErrors.length === 0,
+    pageErrors.slice(0, 2).join(' | ')
+  );
 
   await browser.close();
 

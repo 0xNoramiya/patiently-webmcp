@@ -210,12 +210,20 @@ export function DashboardMain({
     });
   }, [queue]);
 
-  const currentDate = new Date().toLocaleDateString('en-US', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
+  // /dashboard is statically prerendered, so the build machine's date would be
+  // baked into the HTML and disagree with the viewer's clock — a guaranteed
+  // hydration mismatch. Fill it in after mount instead.
+  const [currentDate, setCurrentDate] = useState('');
+  useEffect(() => {
+    setCurrentDate(
+      new Date().toLocaleDateString('en-US', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      })
+    );
+  }, []);
 
   return (
     <main className="min-h-screen bg-ink-50">
@@ -226,7 +234,7 @@ export function DashboardMain({
             <div className="font-display font-semibold text-ink-900 text-sm">
               Patiently Demo Clinic
             </div>
-            <div className="text-xs text-ink-500">{currentDate}</div>
+            <div className="text-xs text-ink-500 min-h-[1rem]">{currentDate}</div>
           </div>
         </div>
         <div className="flex items-center gap-2">
