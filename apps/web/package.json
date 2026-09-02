@@ -8,7 +8,8 @@
     "start": "next start -p 3000",
     "lint": "next lint",
     "eval": "node evals/run.mjs",
-    "eval:live": "node evals/walkthrough.mjs"
+    "eval:live": "node evals/walkthrough.mjs",
+    "eval:injection": "node evals/injection.mjs"
   },
   "dependencies": {
     "@mcp-b/webmcp-polyfill": "^5.1.0",
