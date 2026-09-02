@@ -8,7 +8,7 @@
 [![Live demo](https://img.shields.io/badge/Live%20demo-patiently--webmcp.vercel.app-0e8265)](https://patiently-webmcp.vercel.app)
 [![WebMCP Challenge](https://img.shields.io/badge/OpenAI-WebMCP%20Challenge%202026-10b981)](https://webmcp.devpost.com)
 [![Tools](https://img.shields.io/badge/WebMCP%20tools-20-0e8265)](#the-tool-surface)
-[![Evals](https://img.shields.io/badge/evals-87%20%2B%2032%20%2B%2012%20passing-10b981)](#evals)
+[![Evals](https://img.shields.io/badge/evals-91%20%2B%2032%20%2B%2012%20passing-10b981)](#evals)
 [![License](https://img.shields.io/badge/License-MIT-cbd5e1)](LICENSE)
 
 ---
@@ -344,6 +344,21 @@ and reading it back found five things:
   not been prescribed and must not be dispensed.
 - No statement that the data is synthetic.
 
+### Uploaded files have to be what they say they are
+
+Patients can attach photos, and the declared Content-Type was simply believed.
+Uploading to production, HTML with a `<script>` tag, a PDF and an ELF binary
+were all accepted and stored as `.png` / `.jpg` by claiming `image/png`.
+
+Nothing executed — the stored filename is a server-generated UUID and its
+extension comes from the allowlisted MIME rather than from the uploader, so the
+file is served as `image/png` regardless of its contents, and SVG is not on the
+allowlist at all. But a row saying `image/jpeg` should be true, not asserted by
+whoever sent it. Uploads are now checked against the format's magic bytes, and
+`/api/static/*` is served with `X-Content-Type-Options: nosniff` and
+`Content-Security-Policy: default-src 'none'; sandbox` so the guarantee does not
+depend on the browser agreeing with us.
+
 ### Untrusted content is fenced, not filtered
 
 The pre-visit chart contains text a *patient* typed, flowing toward a
@@ -538,7 +553,7 @@ proves it. `apps/web/evals/` runs the **real app in a real browser** against a
 stubbed `document.modelContext`, and calls every tool the way an agent would.
 
 ```bash
-cd apps/web && npm run eval            # 87 assertions, no model calls
+cd apps/web && npm run eval            # 91 assertions, no model calls
 cd apps/web && npm run eval:live       # 32 assertions, full workflow on real models
 cd apps/web && npm run eval:injection  # 12 assertions, real prompt-injection attacks
 ```

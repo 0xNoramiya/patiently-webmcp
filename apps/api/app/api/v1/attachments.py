@@ -30,6 +30,16 @@ async def upload(
     caption: str | None = Form(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> AttachmentOut:
+    # Reject on the declared size before materialising the body. Starlette
+    # spools large uploads to disk, so this is not the memory cliff it looks
+    # like, but there is no reason to read 60 MB only to throw it away.
+    declared = getattr(file, "size", None)
+    if declared is not None and declared > att_service.MAX_BYTES:
+        raise HTTPException(
+            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            f"file too large ({declared} bytes); max {att_service.MAX_BYTES}",
+        )
+
     data = await file.read()
     try:
         row = await att_service.save_attachment(

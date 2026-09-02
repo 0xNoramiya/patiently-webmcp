@@ -43,6 +43,29 @@ def _ext_for(mime: str) -> str:
     return EXT_BY_MIME.get((mime or "").lower(), ".bin")
 
 
+#: The declared Content-Type comes from whoever is uploading, and testing showed
+#: it is simply believed: HTML, a PDF and an ELF binary were all accepted and
+#: stored as .png/.jpg by claiming to be images. Nothing executes — files are
+#: served with a Content-Type derived from the allowlisted extension, not from
+#: the upload — but "this row is a JPEG" should be true, not merely asserted by
+#: the person who sent it. Check the bytes.
+def _looks_like(data: bytes, mime: str) -> bool:
+    if mime in ("image/jpeg", "image/jpg"):
+        return data[:3] == b"\xff\xd8\xff"
+    if mime == "image/png":
+        return data[:8] == b"\x89PNG\r\n\x1a\n"
+    if mime == "image/webp":
+        return data[:4] == b"RIFF" and data[8:12] == b"WEBP"
+    if mime in ("image/heic", "image/heif"):
+        # ISO-BMFF: a 'ftyp' box at offset 4, with a HEIF-family brand.
+        if data[4:8] != b"ftyp":
+            return False
+        brand = data[8:12]
+        return brand in (b"heic", b"heix", b"heim", b"heis", b"hevc",
+                         b"mif1", b"msf1", b"heif")
+    return False
+
+
 async def save_attachment(
     db: AsyncSession,
     ticket_id: uuid.UUID,
@@ -58,6 +81,10 @@ async def save_attachment(
     normalized = (mime_type or "application/octet-stream").lower().split(";")[0].strip()
     if normalized not in ALLOWED_MIME:
         raise ValueError(f"unsupported file type {normalized!r}")
+    if not _looks_like(data, normalized):
+        raise ValueError(
+            f"file contents are not a valid {normalized} image"
+        )
 
     ticket = await db.get(QueueTicket, ticket_id)
     if ticket is None:

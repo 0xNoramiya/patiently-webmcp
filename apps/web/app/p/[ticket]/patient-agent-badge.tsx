@@ -17,7 +17,12 @@ export function PatientAgentBadge() {
   const last = events[events.length - 1];
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+    // Anchored to the TOP. This sat at the bottom and its pill intercepted
+    // pointer events over the patient's primary action — on the intake screen
+    // the "Got it, let's start" CTA is sticky at bottom-0, and the badge landed
+    // squarely on top of it, so a patient with WebMCP enabled could not start
+    // their intake at all. A status indicator must never cover a button.
+    <div className="pointer-events-none fixed inset-x-0 top-0 z-40 flex justify-center p-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
       <div
         className={cn(
           'pointer-events-auto flex max-w-[92vw] items-center gap-2 rounded-full border border-brand-200 bg-white/95 px-3.5 py-2 shadow-soft backdrop-blur',

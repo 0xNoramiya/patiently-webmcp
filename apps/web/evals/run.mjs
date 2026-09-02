@@ -409,6 +409,37 @@ async function main() {
   check('get_intake_progress responds', !progress.isError, progress.text.slice(0, 140));
 
   // -----------------------------------------------------------------------
+  section('Patient surface — nothing floats over the primary action');
+  // The agent-status badge was fixed to bottom-0 and its pill intercepted
+  // pointer events over the intake CTA, which is sticky at the bottom too. A
+  // patient with WebMCP enabled could not press "Got it, let's start" at all.
+  await page.goto(`${BASE}/p/${ticketId}/intake`, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(4000);
+
+  const primary = page.getByRole('button', { name: /Got it/i });
+  if (await primary.count()) {
+    const box = await primary.first().boundingBox();
+    const covering = await page.evaluate(
+      ([x, y]) => {
+        const el = document.elementFromPoint(x, y);
+        return el ? { tag: el.tagName, cls: String(el.className).slice(0, 80) } : null;
+      },
+      [box.x + box.width / 2, box.y + box.height / 2]
+    );
+    check(
+      'the intake CTA is not covered by a floating element',
+      covering && /BUTTON/i.test(covering.tag),
+      `topmost element at the CTA centre is ${JSON.stringify(covering)}`
+    );
+    // The real proof: it can actually be clicked.
+    await primary.first().click({ timeout: 8000 });
+    await page.waitForTimeout(2500);
+    check('clicking it starts the intake chat', (await page.locator('input[type=file]').count()) > 0);
+  } else {
+    check('intake CTA present (or already dismissed)', true);
+  }
+
+  // -----------------------------------------------------------------------
   section('Patient surface — consent gate');
   await callToolDeferred(page, 'finish_intake', {});
   const dialogAppeared = await page

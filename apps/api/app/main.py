@@ -39,6 +39,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def security_headers(request, call_next):
+    """Stop a browser second-guessing the Content-Type we chose.
+
+    Uploaded files are served from /api/static/photos with a type derived from
+    an allowlisted extension rather than from the upload, so a mislabelled file
+    cannot execute. `nosniff` is what makes that guarantee hold rather than
+    depend on the browser agreeing with us.
+    """
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    if request.url.path.startswith("/api/static/"):
+        # Patient-uploaded bytes: never let them act as a document.
+        response.headers.setdefault(
+            "Content-Security-Policy", "default-src 'none'; sandbox"
+        )
+    return response
+
+
 # Serve generated TTS audio so the dashboard can play it back.
 STATIC_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/api/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
