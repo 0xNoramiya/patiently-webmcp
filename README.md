@@ -305,6 +305,27 @@ The system does not escalate priority by itself here. Guessing a triage
 decision on the classifier's behalf would be the same mistake in the other
 direction — it surfaces the gap and lets a human decide.
 
+### The interaction checker is a safety net with a stated edge
+
+It is a deterministic rule set covering high-yield outpatient interactions by
+drug *category*, not a clinical database — the code has always said so, and the
+README should too. Testing it against known-dangerous pairs rather than reading
+the table found two things:
+
+- **ACE inhibitor + ARB never fired.** Both appear inside
+  `frozenset({"acei", "arb"})` on one side of other rules, which reads as
+  covered — but that means "either one", and nothing matched the two together.
+  Dual RAAS blockade is an easy prescribing slip when a patient already takes
+  one. Now a `major`.
+- **Warfarin + aspirin reported twice**, once on antiplatelet grounds and once
+  on NSAID grounds. Two real mechanisms, presented as a duplicate row. Merged
+  into one row that keeps both reasons and the worse severity.
+
+It correctly catches nitrate + PDE5 inhibitor — which matters here, because the
+demo prescribes nitroglycerin and the generated plan asks about recent PDE5 use
+— and stays quiet on benign pairs, because false positives are how a real
+warning gets ignored.
+
 ### The differential is ordered by what you cannot afford to miss
 
 Reading the generated charts after the model change found the one place quality
@@ -439,7 +460,7 @@ CHIEF COMPLAINT: chest pain radiating to left arm
 | `get_previsit_chart` | read | HPI, follow-up delta, suggested questions, differentials |
 | `get_clinic_floor_stats` | read | Throughput, average wait, red flags raised today |
 | `get_vitals` | read | Vitals for this visit, with critical values called out |
-| `check_drug_interactions` | read | Cross-checks drafts, home meds and previous prescriptions |
+| `check_drug_interactions` | read | Cross-checks drafts, home meds and previous prescriptions against a curated rule set |
 | `draft_soap_note` | draft | Unsigned SOAP note into the clinician's editor |
 | `draft_prescriptions` | draft | Unsigned Rx drafts + automatic interaction screen |
 | `record_vitals` | **commit** | Writes vitals — dialog first |

@@ -11,7 +11,7 @@ remains the final arbiter — this is a safety-net not a substitute.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 
 # --- Drug → category mapping ---------------------------------------------
@@ -166,6 +166,17 @@ RULES: tuple[Rule, ...] = (
         "moderate",
         "Hyperkalemia risk when combining RAAS blockade with potassium-sparing diuretic.",
     ),
+    # An ACE inhibitor and an ARB are each one side of the rules above, which
+    # made it look covered — but nothing matched the two of them TOGETHER.
+    # Dual RAAS blockade raises hyperkalemia, hypotension and renal failure
+    # without an outcome benefit (ONTARGET), and it is an easy prescribing slip
+    # when a patient arrives already taking one.
+    Rule(
+        frozenset({"acei"}), frozenset({"arb"}),
+        "major",
+        "Dual RAAS blockade (ACE inhibitor + ARB): hyperkalemia, hypotension and "
+        "acute kidney injury with no outcome benefit. Use one, not both.",
+    ),
     Rule(
         frozenset({"beta_blocker"}), frozenset({"non_dhp_ccb"}),
         "major",
@@ -235,6 +246,9 @@ class Interaction:
     rationale: str
 
 
+#: major is worst. Used for both merging and final ordering.
+_SEVERITY_RANK = {"major": 0, "moderate": 1, "minor": 2}
+
 _NON_ALPHA = re.compile(r"[^a-z]+")
 
 
@@ -274,21 +288,42 @@ def find_interactions(drug_names: list[str]) -> list[Interaction]:
         cleaned.append((name.strip() or norm, norm, categories_for(name)))
 
     out: list[Interaction] = []
-    seen_keys: set[tuple[str, str, str]] = set()
+    seen_keys: set[tuple[str, str]] = set()
+    merged: dict[tuple[str, str], int] = {}
     for i in range(len(cleaned)):
         for j in range(i + 1, len(cleaned)):
             display_a, _, cats_a = cleaned[i]
             display_b, _, cats_b = cleaned[j]
             for rule in RULES:
                 if _pair_matches(rule, cats_a, cats_b):
+                    # One row per drug PAIR, not per rule. Warfarin+Aspirin
+                    # matches on both the antiplatelet and the NSAID mechanism;
+                    # reporting it twice reads as a duplicate rather than as two
+                    # reasons, so the reasons are merged and the worst severity
+                    # wins.
                     key = (
                         min(display_a, display_b).lower(),
                         max(display_a, display_b).lower(),
-                        rule.rationale,
                     )
-                    if key in seen_keys:
+                    at = merged.get(key)
+                    if at is not None:
+                        # Interaction is frozen on purpose, so merge by
+                        # replacing the entry rather than mutating it.
+                        prev = out[at]
+                        worst = (
+                            rule.severity
+                            if _SEVERITY_RANK[rule.severity] < _SEVERITY_RANK[prev.severity]
+                            else prev.severity
+                        )
+                        rationale = (
+                            prev.rationale
+                            if rule.rationale in prev.rationale
+                            else f"{prev.rationale} {rule.rationale}"
+                        )
+                        out[at] = replace(prev, severity=worst, rationale=rationale)
                         continue
                     seen_keys.add(key)
+                    merged[key] = len(out)
                     out.append(
                         Interaction(
                             drug_a=display_a,
@@ -298,8 +333,7 @@ def find_interactions(drug_names: list[str]) -> list[Interaction]:
                         )
                     )
     # Sort: major > moderate > minor, then alphabetical for stability
-    rank = {"major": 0, "moderate": 1, "minor": 2}
-    out.sort(key=lambda x: (rank.get(x.severity, 9), x.drug_a.lower(), x.drug_b.lower()))
+    out.sort(key=lambda x: (_SEVERITY_RANK.get(x.severity, 9), x.drug_a.lower(), x.drug_b.lower()))
     return out
 
 
