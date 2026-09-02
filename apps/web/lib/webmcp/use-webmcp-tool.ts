@@ -56,7 +56,7 @@ export function useWebMCPTools(
             const label = tool.label?.(input) ?? tool.name.replace(/_/g, ' ');
             const callId = beginCall(tool.name, label);
             try {
-              const result = await tool.execute(input, context);
+              const result = await tool.execute(input, context ?? {});
               const declined =
                 typeof result === 'string' && /declined|cancell?ed/i.test(result);
               endCall(callId, declined ? 'declined' : 'ok');

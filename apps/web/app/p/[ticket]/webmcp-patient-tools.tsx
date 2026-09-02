@@ -16,7 +16,7 @@
  * a patient's agent) can describe symptoms; neither can move themselves up the
  * queue by asking.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { api } from '@/lib/api';
 import {
@@ -62,6 +62,11 @@ function describeCaptured(data: Record<string, unknown>): string[] {
 export function PatientAgentTools({ ticketId }: { ticketId: string }) {
   const { requestApproval } = useAgentSession();
   const [ticket, setTicket] = useState<TicketDetail | null>(null);
+
+  // Read through a ref so the ticket arriving does not re-register the tools
+  // out from under an in-flight call.
+  const ticketRef = useRef<TicketDetail | null>(null);
+  ticketRef.current = ticket;
 
   useEffect(() => {
     api.getTicket(ticketId).then(setTicket).catch(() => {});
@@ -282,7 +287,7 @@ export function PatientAgentTools({ ticketId }: { ticketId: string }) {
       inputSchema: { type: 'object', properties: {} },
       label: () => 'Fetched caregiver share link',
       execute: async () => {
-        const t = ticket ?? (await api.getTicket(ticketId));
+        const t = ticketRef.current ?? (await api.getTicket(ticketId));
         const url =
           typeof window !== 'undefined'
             ? `${window.location.origin}/p/${ticketId}`
@@ -292,7 +297,7 @@ export function PatientAgentTools({ ticketId }: { ticketId: string }) {
     },
   ];
 
-  useWebMCPTools(tools, [ticketId, requestApproval, ticket?.ticket_number]);
+  useWebMCPTools(tools, [ticketId, requestApproval]);
 
   return null;
 }

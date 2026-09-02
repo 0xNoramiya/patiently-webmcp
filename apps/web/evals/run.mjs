@@ -1,10 +1,18 @@
 /**
  * WebMCP eval harness.
  *
- * Drives the real app in a real browser with a stubbed `document.modelContext`,
- * then calls each tool the way an agent would and checks what comes back. The
- * point is not just "did it return a string" — the interesting assertions are
- * the safety properties:
+ * Drives the real app in a real browser against the REAL `document.modelContext`
+ * the site installs, calling every tool exactly the way an agent does:
+ * `executeTool(toolObject, JSON.stringify(args))`, result parsed back from the
+ * JSON string the runtime returns.
+ *
+ * This used to inject a stub. The stub was more forgiving than the real runtime
+ * and hid three genuine bugs — tools that threw before their body ran because
+ * the runtime passes one argument where the spec passes two, tools that
+ * unregistered themselves mid-call, and the fact that nothing registered at all
+ * in a browser without native WebMCP. Testing against a convenient fiction is
+ * worse than not testing. The interesting assertions are the safety
+ * properties:
  *
  *   - read tools are annotated readOnlyHint
  *   - tools returning patient-authored text are annotated untrustedContentHint
@@ -15,13 +23,8 @@
  * Usage:  node evals/run.mjs [baseUrl]
  */
 import { chromium } from 'playwright';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
 const BASE = process.argv[2] || process.env.EVAL_BASE_URL || 'http://localhost:3000';
-const STUB = readFileSync(join(__dirname, 'webmcp-stub.js'), 'utf8');
 
 const EXPECTED_CLINICIAN = [
   'call_next_patient', 'check_drug_interactions', 'complete_consultation',
@@ -54,13 +57,30 @@ function section(title) {
   console.log(`\n\x1b[1m${title}\x1b[0m`);
 }
 
-/** Call a tool the way an agent would; returns the flattened text. */
+/**
+ * Call a tool exactly as an agent does.
+ *
+ * The runtime takes the RegisteredTool object (not its name) plus a JSON
+ * *string* of arguments, and returns the result JSON-serialized to a string.
+ * Getting any part of that wrong looks like a broken tool, so the harness
+ * speaks the real protocol.
+ */
 async function callTool(page, name, args = {}) {
   return page.evaluate(
     async ([n, a]) => {
-      const res = await document.modelContext.executeTool(n, a);
-      const text = (res?.content ?? []).map((c) => c.text).join('\n');
-      return { text, isError: !!res?.isError };
+      const tools = await document.modelContext.getTools();
+      const tool = tools.find((t) => t.name === n);
+      if (!tool) return { text: `no such tool: ${n}`, isError: true };
+      try {
+        const raw = await document.modelContext.executeTool(tool, JSON.stringify(a));
+        const res = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        return {
+          text: (res?.content ?? []).map((c) => c.text).join('\n'),
+          isError: !!res?.isError,
+        };
+      } catch (err) {
+        return { text: String(err?.message ?? err), isError: true };
+      }
     },
     [name, args]
   );
@@ -69,15 +89,16 @@ async function callTool(page, name, args = {}) {
 /** Start a tool call without awaiting it, so we can inspect the pending state. */
 async function callToolDeferred(page, name, args = {}) {
   await page.evaluate(
-    ([n, a]) => {
+    async ([n, a]) => {
       window.__pending = { settled: false, result: null };
+      const tools = await document.modelContext.getTools();
+      const tool = tools.find((t) => t.name === n);
       window.__pendingPromise = document.modelContext
-        .executeTool(n, a)
-        .then((res) => {
+        .executeTool(tool, JSON.stringify(a))
+        .then((raw) => {
+          const res = typeof raw === 'string' ? JSON.parse(raw) : raw;
           window.__pending.settled = true;
-          window.__pending.result = (res?.content ?? [])
-            .map((c) => c.text)
-            .join('\n');
+          window.__pending.result = (res?.content ?? []).map((c) => c.text).join('\n');
         })
         .catch((err) => {
           window.__pending.settled = true;
@@ -106,11 +127,29 @@ async function listTools(page) {
   return page.evaluate(() => document.modelContext.getTools());
 }
 
-async function waitForTools(page, min) {
-  await page.waitForFunction(
-    (m) => (window.__webmcpTools?.size ?? 0) >= m,
-    min,
-    { timeout: 25000 }
+/**
+ * Wait until at least `min` tools are registered.
+ *
+ * Polls from Node rather than via page.waitForFunction: getTools() is async,
+ * and an async predicate handed to waitForFunction returns a Promise — which is
+ * always truthy, so it would resolve immediately and wait for nothing.
+ */
+async function waitForTools(page, min, timeoutMs = 30000) {
+  const deadline = Date.now() + timeoutMs;
+  let count = 0;
+  while (Date.now() < deadline) {
+    count = await page.evaluate(async () => {
+      try {
+        return document.modelContext ? (await document.modelContext.getTools()).length : -1;
+      } catch {
+        return -1;
+      }
+    });
+    if (count >= min) return count;
+    await page.waitForTimeout(250);
+  }
+  throw new Error(
+    `timed out waiting for ${min} tools on ${page.url()} (last saw ${count === -1 ? 'no modelContext' : count})`
   );
 }
 
@@ -122,7 +161,6 @@ async function main() {
   const executablePath = process.env.CHROME_PATH || undefined;
   const browser = await chromium.launch({ executablePath });
   const context = await browser.newContext();
-  await context.addInitScript(STUB);
   const page = await context.newPage();
 
   // Page errors are a failure, not a warning. React hydration mismatches show

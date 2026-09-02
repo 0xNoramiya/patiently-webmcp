@@ -141,9 +141,14 @@ export function registerTool<TInput>(
 
   const wrapped: ToolDefinition<TInput> = {
     ...tool,
+    // The spec passes an execution context as the second argument, but the
+    // polyfill's runtime calls `tool.execute(args)` with one. Tool bodies
+    // destructure `{ signal }` out of that second parameter, so defaulting it
+    // here is the difference between a working tool and a TypeError thrown
+    // before the body runs.
     execute: async (input, context) => {
       try {
-        return toToolResult(await tool.execute(input, context));
+        return toToolResult(await tool.execute(input, context ?? {}));
       } catch (err) {
         const message =
           err instanceof Error ? err.message : String(err ?? 'unknown error');

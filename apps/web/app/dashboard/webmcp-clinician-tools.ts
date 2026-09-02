@@ -19,6 +19,8 @@
  * next patient, closing a consultation — happens without that click. The agent
  * cannot route around it: the write only exists on the approved branch.
  */
+import { useRef } from 'react';
+
 import { api } from '@/lib/api';
 import {
   POLI_LABEL,
@@ -161,23 +163,28 @@ async function requireTicket(ref: string) {
 // ---------------------------------------------------------------------------
 
 export function useClinicianTools(deps: ClinicianToolDeps) {
-  const {
-    adminPassword,
-    activePoli,
-    setActivePoli,
-    setSelectedTicketId,
-    refreshQueue,
-    refreshDetail,
-  } = deps;
   const { requestApproval } = useAgentSession();
 
-  const pw = adminPassword;
+  /**
+   * Live dashboard state, read through a ref.
+   *
+   * These tools deliberately drive the clinician's screen — focusing a patient
+   * switches the selected department. That state used to sit in the
+   * registration dependency list, which meant a tool could tear down its own
+   * registration halfway through executing, and the runtime would abort the
+   * call it was still running with "Tool unregistered". Registration is now
+   * stable and the closures read current values from here instead.
+   */
+  const live = useRef(deps);
+  live.current = deps;
+
+  const pw = deps.adminPassword;
 
   /** Bring a patient into focus on the clinician's actual screen. */
   const focus = async (ticketId: string, poli: Poli) => {
-    setActivePoli(poli);
-    setSelectedTicketId(ticketId);
-    await refreshDetail(ticketId).catch(() => {});
+    live.current.setActivePoli(poli);
+    live.current.setSelectedTicketId(ticketId);
+    await live.current.refreshDetail(ticketId).catch(() => {});
   };
 
   const tools: AppToolDefinition<any>[] = [
@@ -424,7 +431,7 @@ export function useClinicianTools(deps: ClinicianToolDeps) {
         if (note.status === 'failed') {
           throw new Error(note.error || 'note drafting failed');
         }
-        await refreshDetail(entry.ticket.id).catch(() => {});
+        await live.current.refreshDetail(entry.ticket.id).catch(() => {});
         const provenance = session
           ? ''
           : `\n⚠ This patient never completed pre-visit intake, so the note is built from vitals and previous-visit records only — it contains no history in the patient's own words.`;
@@ -475,7 +482,7 @@ export function useClinicianTools(deps: ClinicianToolDeps) {
           interactionText = '\n\nInteraction screen unavailable.';
         }
 
-        await refreshDetail(entry.ticket.id).catch(() => {});
+        await live.current.refreshDetail(entry.ticket.id).catch(() => {});
         return [
           `${drafts.length} UNSIGNED draft(s) for ${entry.ticket.ticket_number}, now on screen:`,
           ...lines,
@@ -534,7 +541,7 @@ export function useClinicianTools(deps: ClinicianToolDeps) {
           { ...vitals, recorded_by: 'agent (clinician-confirmed)' },
           pw
         );
-        await refreshDetail(entry.ticket.id).catch(() => {});
+        await live.current.refreshDetail(entry.ticket.id).catch(() => {});
         const crit = saved.critical_labels.length
           ? ` ⚠ CRITICAL: ${saved.critical_labels.join(', ')}`
           : '';
@@ -612,7 +619,7 @@ export function useClinicianTools(deps: ClinicianToolDeps) {
         }
 
         await api.approvePrescription(target.id, true, pw);
-        await refreshDetail(entry.ticket.id).catch(() => {});
+        await live.current.refreshDetail(entry.ticket.id).catch(() => {});
         return `${target.drug_name} signed by the clinician for ${entry.ticket.ticket_number}.`;
       },
     },
@@ -639,7 +646,7 @@ export function useClinicianTools(deps: ClinicianToolDeps) {
         if (ticket) {
           target = await requireTicket(ticket);
         } else {
-          const p = (poli as Poli) || activePoli;
+          const p = (poli as Poli) || live.current.activePoli;
           const q = await api.getQueue(p);
           const candidates = [...q.intake_complete, ...q.waiting, ...q.in_intake].sort(
             (a, b) => b.ticket.priority - a.ticket.priority || a.position - b.position
@@ -665,8 +672,8 @@ export function useClinicianTools(deps: ClinicianToolDeps) {
         if (!ok) return `Clinician declined — ${target.entry.ticket.ticket_number} was not called.`;
 
         await api.callNext(target.entry.ticket.id, pw);
-        await refreshQueue().catch(() => {});
-        await refreshDetail(target.entry.ticket.id).catch(() => {});
+        await live.current.refreshQueue().catch(() => {});
+        await live.current.refreshDetail(target.entry.ticket.id).catch(() => {});
         return `${target.entry.ticket.ticket_number} (${target.entry.patient.name}) called in.`;
       },
     },
@@ -696,13 +703,13 @@ export function useClinicianTools(deps: ClinicianToolDeps) {
         if (!ok) return `Clinician declined — ${entry.ticket.ticket_number} is still open.`;
 
         await api.completeTicket(entry.ticket.id, pw);
-        await refreshQueue().catch(() => {});
+        await live.current.refreshQueue().catch(() => {});
         return `${entry.ticket.ticket_number} closed.`;
       },
     },
   ];
 
-  useWebMCPTools(tools, [pw, activePoli, requestApproval, refreshQueue, refreshDetail]);
+  useWebMCPTools(tools, [pw, requestApproval]);
 }
 
 // ---------------------------------------------------------------------------
