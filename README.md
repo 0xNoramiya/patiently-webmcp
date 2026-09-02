@@ -305,6 +305,18 @@ The system does not escalate priority by itself here. Guessing a triage
 decision on the classifier's behalf would be the same mistake in the other
 direction — it surfaces the gap and lets a human decide.
 
+### Every vital is bounded on both sides
+
+The critical-value flagger had been exercised only with high readings — 210/125,
+SpO₂ 88. Testing it downwards found that respiratory rate had a ceiling and no
+floor: **RR 24 raised tachypnea, RR 6 raised nothing at all.** A respiratory rate
+of six is a peri-arrest finding, and the chart said the patient was fine.
+
+Blood pressure, heart rate and temperature were already bounded both ways, which
+is what marked this as an oversight rather than a decision. Bradypnea is now a
+critical finding, and a test asserts that every bounded vital has both a low-side
+and a high-side code — the check that would have caught it.
+
 ### The one thing that is not human-gated, and why
 
 Every write that touches a patient's care blocks on a click. Appointment

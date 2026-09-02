@@ -26,6 +26,7 @@ CRITICAL_LABELS: dict[str, str] = {
     "SEVERE_TACHYCARDIA": "Severe tachycardia (HR ≥130)",
     "BRADYCARDIA": "Bradycardia (HR <50)",
     "HYPOXIA": "Hypoxia (SpO₂ <92%)",
+    "BRADYPNEA": "Bradypnea (RR <8)",
     "TACHYPNEA": "Tachypnea (RR ≥24)",
     "HIGH_FEVER": "High fever (T ≥39.0 °C)",
     "HYPOTHERMIA": "Hypothermia (T <35.0 °C)",
@@ -57,6 +58,12 @@ def detect_critical(v: dict[str, Any]) -> list[str]:
 
     if spo2 is not None and spo2 < 92:
         flags.append("HYPOXIA")
+
+    # Respiratory depression: opioids, CNS depression, impending arrest. Every
+    # other vital here is bounded on both sides; respiratory rate had only a
+    # ceiling, so a peri-arrest rate of 6 produced no finding at all.
+    if rr is not None and rr < 8:
+        flags.append("BRADYPNEA")
 
     if rr is not None and rr >= 24:
         flags.append("TACHYPNEA")
