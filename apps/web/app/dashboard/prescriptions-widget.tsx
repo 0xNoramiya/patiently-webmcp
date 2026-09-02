@@ -76,7 +76,7 @@ export function PrescriptionsWidget({
             Prescriptions
           </h3>
           <div className="text-[11px] text-ink-400 mt-0.5">
-            Drafted from the SOAP plan via Featherless · physician must approve
+            Drafted from the SOAP plan · physician must approve
           </div>
         </div>
         <button
@@ -120,7 +120,7 @@ export function PrescriptionsWidget({
             className="typing-dot w-2 h-2 rounded-full bg-brand-500"
             style={{ animationDelay: '0.3s' }}
           />
-          <span>Featherless is drafting prescriptions from the SOAP plan…</span>
+          <span>Drafting prescriptions from the SOAP plan…</span>
         </div>
       )}
 

@@ -16,33 +16,60 @@ interface KpiProps {
   label: string;
   value: string;
   hint?: string;
-  tone?: 'neutral' | 'brand' | 'warn' | 'alert';
+  tone?: 'neutral' | 'brand' | 'alert';
 }
 
+/**
+ * A single headline metric.
+ *
+ * A value of zero is rendered muted. Ten tiles all reading "0" in full-strength
+ * ink made an idle clinic look broken and buried the one number that was
+ * actually moving — so an empty metric recedes and a live one carries weight.
+ */
 function Kpi({ label, value, hint, tone = 'neutral' }: KpiProps) {
+  const empty = value === '0' || value === '—';
+
   return (
     <div
       className={cn(
-        'flex-1 min-w-[120px] rounded-2xl border bg-white px-4 py-3 shadow-soft',
-        tone === 'brand' && 'border-brand-100 bg-brand-50/60',
-        tone === 'warn' && 'border-warn-100 bg-warn-50/40',
-        tone === 'alert' && 'border-alert-100 bg-alert-50/40',
-        tone === 'neutral' && 'border-ink-100'
+        'flex-1 min-w-[132px] rounded-2xl border px-4 py-3',
+        empty
+          ? 'border-ink-100/70 bg-white/50'
+          : 'bg-white shadow-soft',
+        !empty && tone === 'brand' && 'border-brand-100 bg-brand-50/60',
+        !empty && tone === 'alert' && 'border-alert-100 bg-alert-50/50',
+        !empty && tone === 'neutral' && 'border-ink-100'
       )}
     >
-      <div className="text-[10px] uppercase tracking-wider text-ink-500 font-semibold">
+      <div className="text-[10px] uppercase tracking-[0.08em] font-semibold text-ink-500">
         {label}
       </div>
       <div
         className={cn(
-          'font-display text-2xl font-bold mt-0.5',
-          tone === 'alert' ? 'text-alert-700' : 'text-ink-900'
+          'font-display text-2xl font-bold mt-0.5 tabular-nums',
+          empty
+            ? 'text-ink-300'
+            : tone === 'alert'
+              ? 'text-alert-700'
+              : 'text-ink-900'
         )}
       >
         {value}
       </div>
-      {hint && <div className="text-[11px] text-ink-400 mt-0.5 truncate">{hint}</div>}
+      {hint && <div className="text-[11px] text-ink-400 mt-0.5">{hint}</div>}
     </div>
+  );
+}
+
+/** One of the lower-priority daily counters, on a single shared line. */
+function Tally({ label, value }: { label: string; value: number }) {
+  return (
+    <span className={cn('tabular-nums', value > 0 ? 'text-ink-700' : 'text-ink-400')}>
+      <span className={value > 0 ? 'font-semibold text-ink-900' : 'font-semibold'}>
+        {value}
+      </span>{' '}
+      {label}
+    </span>
   );
 }
 
@@ -68,19 +95,23 @@ export function StatsStrip({ adminPassword }: { adminPassword: string }) {
 
   if (error) {
     return (
-      <div className="text-[11px] text-alert-700 px-4 py-2">{error}</div>
+      <div className="px-4 py-2 text-[11px] text-alert-700">
+        Clinic stats unavailable — {error}
+      </div>
     );
   }
 
   if (!stats) {
     return (
-      <div className="flex gap-3 px-4 py-2">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div
-            key={i}
-            className="flex-1 min-w-[120px] h-[68px] rounded-2xl border border-ink-100 bg-white shadow-soft animate-pulse"
-          />
-        ))}
+      <div className="px-4 py-2">
+        <div className="flex gap-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div
+              key={i}
+              className="h-[72px] flex-1 min-w-[132px] animate-pulse rounded-2xl border border-ink-100 bg-white"
+            />
+          ))}
+        </div>
       </div>
     );
   }
@@ -88,37 +119,25 @@ export function StatsStrip({ adminPassword }: { adminPassword: string }) {
   const triageHint = (() => {
     const flags = Object.entries(stats.triage.by_flag).sort((a, b) => b[1] - a[1]);
     if (!flags.length) return 'none today';
-    const top = flags[0];
-    const short = RED_FLAG_LABELS[top[0]] || top[0];
-    return `${short} ×${top[1]}`;
+    const [code, count] = flags[0];
+    return `${RED_FLAG_LABELS[code] || code} ×${count}`;
   })();
 
   return (
     <div className="px-4 py-2">
+      {/* The five numbers a clinician acts on. */}
       <div className="flex gap-3 overflow-x-auto scroll-thin">
         <Kpi
           label="Waiting"
           value={format(stats.tickets.waiting)}
-          hint="across all departments"
+          hint="all departments"
           tone="neutral"
         />
         <Kpi
           label="In consultation"
           value={format(stats.tickets.in_consultation)}
-          hint="currently with a doctor"
+          hint="with a doctor"
           tone="brand"
-        />
-        <Kpi
-          label="Seen today"
-          value={format(stats.tickets.seen_today)}
-          hint="completed visits"
-          tone="neutral"
-        />
-        <Kpi
-          label="Intakes done"
-          value={format(stats.intakes_completed_today)}
-          hint="agent-completed today"
-          tone="neutral"
         />
         <Kpi
           label="Triage flags"
@@ -133,29 +152,32 @@ export function StatsStrip({ adminPassword }: { adminPassword: string }) {
           tone="neutral"
         />
         <Kpi
-          label="Avg consult"
-          value={stats.avg_consult_minutes === null ? '—' : `${format(stats.avg_consult_minutes)}m`}
-          hint="called → completed"
+          label="Seen today"
+          value={format(stats.tickets.seen_today)}
+          hint="visits completed"
           tone="neutral"
         />
-        <Kpi
-          label="Reminders sent"
-          value={format(stats.reminders.sent_today)}
-          hint={`${stats.reminders.pending} pending`}
-          tone="neutral"
-        />
-        <Kpi
-          label="Transcripts"
-          value={format(stats.transcripts_today)}
-          hint="Speechmatics today"
-          tone="neutral"
-        />
-        <Kpi
-          label="SOAP notes"
-          value={format(stats.notes_today)}
-          hint="Featherless today"
-          tone="neutral"
-        />
+      </div>
+
+      {/* Everything else is a running tally, not a headline. */}
+      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-[11px] text-ink-400">
+        <span className="font-semibold uppercase tracking-[0.08em] text-ink-300">
+          Today
+        </span>
+        <Tally label="intakes completed" value={stats.intakes_completed_today} />
+        <Tally label="SOAP notes" value={stats.notes_today} />
+        <Tally label="transcripts" value={stats.transcripts_today} />
+        <Tally label="reminders sent" value={stats.reminders.sent_today} />
+        {stats.reminders.pending > 0 && (
+          <span className="tabular-nums text-ink-400">
+            {stats.reminders.pending} pending
+          </span>
+        )}
+        {stats.avg_consult_minutes !== null && (
+          <span className="tabular-nums text-ink-400">
+            avg consult {format(stats.avg_consult_minutes)}m
+          </span>
+        )}
       </div>
     </div>
   );

@@ -86,7 +86,7 @@ export function RemindersPanel({ adminPassword }: { adminPassword: string }) {
             Appointment reminders
           </h3>
           <div className="text-[11px] text-ink-400 mt-0.5">
-            Scheduler runs every 60s · Powered by Featherless
+            Scheduler runs every 60s
           </div>
         </div>
         <button

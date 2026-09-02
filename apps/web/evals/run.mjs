@@ -123,6 +123,30 @@ async function main() {
   });
 
   // -----------------------------------------------------------------------
+  section('Front door — the landing page is a WebMCP surface too');
+  await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
+  await waitForTools(page, 2);
+
+  const landingTools = await listTools(page);
+  check(
+    `landing page registers 2 tools (got ${landingTools.length})`,
+    landingTools.length === 2,
+    landingTools.map((t) => t.name).join(', ')
+  );
+
+  const surfaces = await callTool(page, 'list_demo_surfaces', {});
+  check('list_demo_surfaces describes both surfaces', /CLINICIAN DASHBOARD[\s\S]*PATIENT VIEW/.test(surfaces.text), surfaces.text.slice(0, 100));
+  check('list_demo_surfaces names waiting patients', /[A-E]-\d{3} —/.test(surfaces.text), surfaces.text.slice(-200));
+
+  const banner = await page.locator('[role="status"]').innerText();
+  check('status banner reports WebMCP is detected', /WebMCP detected/.test(banner), banner.slice(0, 120));
+
+  const opened = await callTool(page, 'open_demo', { surface: 'clinician' });
+  check('open_demo navigates to the dashboard', /Opening the clinician dashboard/.test(opened.text), opened.text.slice(0, 100));
+  await page.waitForURL('**/dashboard', { timeout: 15000 });
+  check('browser actually landed on /dashboard', page.url().endsWith('/dashboard'), page.url());
+
+  // -----------------------------------------------------------------------
   section('Clinician surface — registration');
   await page.goto(`${BASE}/dashboard`, { waitUntil: 'domcontentloaded' });
   await waitForTools(page, 10);
@@ -219,9 +243,16 @@ async function main() {
 
   // -----------------------------------------------------------------------
   section('Clinician surface — activity is visible to the human');
-  const panel = await page.locator('section[aria-label="Agent activity"]').innerText();
-  check('activity panel shows tools are live', /tools live/.test(panel), panel.slice(0, 120));
+  const panel = await page.locator('section[aria-label="Your agent"]').innerText();
   check('activity panel logged the agent\'s calls', /Listed the patient queue|Read pre-visit chart/.test(panel), panel.slice(0, 240));
+
+  const headerPill = await page.locator('header').first().innerText();
+  check('header shows a live tool count', /\d+ agent tools live/.test(headerPill), headerPill.slice(0, 160));
+  check(
+    'internal pipeline is not also called "agent activity"',
+    !/Agent activity/.test(await page.locator('body').innerText()),
+    'naming collision between the clinical pipeline and the user\'s agent'
+  );
 
   // -----------------------------------------------------------------------
   section('Patient surface');
@@ -230,8 +261,13 @@ async function main() {
       const res = await fetch('/api/queue/umum');
       if (!res.ok) return { error: `HTTP ${res.status}` };
       const q = await res.json();
-      const id = q.waiting[0]?.ticket?.id ?? q.in_intake[0]?.ticket?.id;
-      return id ? { id } : { error: 'queue is empty — is the demo data seeded?' };
+      // The suite's own writes call patients in, so `waiting` empties as it
+      // runs. Any active bucket gives a valid ticket to exercise.
+      const id = [q.waiting, q.in_intake, q.intake_complete, q.in_consultation]
+        .flat()
+        .map((e) => e?.ticket?.id)
+        .find(Boolean);
+      return id ? { id } : { error: 'no active tickets — reseed the demo data' };
     } catch (err) {
       return { error: err.message };
     }
@@ -286,10 +322,24 @@ async function main() {
 
   // -----------------------------------------------------------------------
   section('Tool lifecycle');
+  // Navigating away must swap the whole tool surface, not accumulate it: the
+  // patient tools go, and only the front door's own two remain. An agent that
+  // still sees `describe_symptoms` after leaving the ticket would be holding a
+  // tool that can no longer work.
   await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
-  await page.waitForTimeout(1200);
+  await page.waitForTimeout(1500);
   const afterLeave = await listTools(page);
-  check('tools unregister when their surface unmounts', afterLeave.length === 0, `${afterLeave.length} left: ${afterLeave.map((t) => t.name).join(', ')}`);
+  const leftNames = afterLeave.map((t) => t.name).sort();
+  check(
+    'leaving a surface unregisters its tools',
+    !leftNames.some((n) => ['describe_symptoms', 'get_queue_status', 'list_patient_queue'].includes(n)),
+    leftNames.join(', ')
+  );
+  check(
+    'the front door re-registers only its own 2 tools',
+    JSON.stringify(leftNames) === JSON.stringify(['list_demo_surfaces', 'open_demo']),
+    leftNames.join(', ')
+  );
 
   section('Page health');
   const hydrationErrors = pageErrors.filter((m) => /Minified React error #(418|423|425)|hydrat/i.test(m));

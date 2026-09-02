@@ -8,7 +8,7 @@ type Phase = 'idle' | 'recording' | 'uploading' | 'unsupported' | 'denied';
 
 interface Props {
   ticketId: string;
-  /** Called with the transcribed text once Speechmatics returns it. */
+  /** Called with the transcribed text once speech-to-text returns it. */
   onTranscript: (text: string) => void;
   /** Surface an error message if the round-trip fails. */
   onError?: (message: string) => void;

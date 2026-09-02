@@ -18,6 +18,7 @@ import { cn, formatRelative } from '@/lib/utils';
 import {
   AgentActivityPanel,
   AgentApprovalDialog,
+  AgentStatusPill,
 } from '@/components/AgentActivityPanel';
 import { useClinicianTools } from './webmcp-clinician-tools';
 import { NotesWidget } from './notes-widget';
@@ -236,6 +237,7 @@ export function DashboardMain({
             </div>
             <div className="text-xs text-ink-500 min-h-[1rem]">{currentDate}</div>
           </div>
+          <AgentStatusPill className="ml-2" />
         </div>
         <div className="flex items-center gap-2">
           {POLI_LIST.map((p) => (
@@ -274,7 +276,7 @@ export function DashboardMain({
             </div>
             <span className="pill-ink text-[11px]">{sortedEntries.length} patients</span>
           </div>
-          <div className="flex-1 overflow-y-auto scroll-thin">
+          <div className="max-h-[55%] shrink-0 overflow-y-auto scroll-thin">
             {sortedEntries.length === 0 && (
               <div className="p-8 text-center text-sm text-ink-400">
                 No patients in {POLI_LABEL[activePoli]} yet.
@@ -289,7 +291,7 @@ export function DashboardMain({
               />
             ))}
           </div>
-          <AgentActivityPanel className="shrink-0 border-t border-ink-100" />
+          <AgentActivityPanel className="min-h-0 flex-1 border-t border-ink-100" />
         </aside>
 
         <section className="col-span-7 xl:col-span-8 card overflow-hidden flex flex-col">
@@ -464,11 +466,17 @@ function AgentsPanel({
 
   return (
     <div className="card-padded">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="font-display font-semibold text-ink-900 text-sm uppercase tracking-wide">
-          Agents
-        </h3>
-        <span className="text-[11px] text-ink-400">live</span>
+      <div className="mb-3">
+        <div className="flex items-center justify-between">
+          <h3 className="font-display text-sm font-semibold uppercase tracking-[0.08em] text-ink-900">
+            Clinical pipeline
+          </h3>
+          <span className="text-[11px] text-ink-400">server-side</span>
+        </div>
+        <p className="mt-0.5 text-[11px] leading-snug text-ink-400">
+          Runs on the clinic&rsquo;s own models as the patient types. Not the
+          agent you are talking to.
+        </p>
       </div>
       <div className="space-y-2.5">
         {agents.map((a) => (

@@ -33,6 +33,45 @@ const STATUS_LABEL: Record<AgentEventStatus, string> = {
   declined: 'declined',
 };
 
+/**
+ * Persistent WebMCP status, shown in the clinic header.
+ *
+ * This lives at the top of the page rather than beside the activity log
+ * because it answers the first question anyone opening the app has — is my
+ * agent connected to this clinic at all? Burying that under the fold made the
+ * product's whole premise the least visible thing on screen.
+ */
+export function AgentStatusPill({ className }: { className?: string }) {
+  const { supported, toolCount } = useAgentSession();
+
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold',
+        supported
+          ? 'border-brand-200 bg-brand-50 text-brand-700'
+          : 'border-ink-200 bg-ink-50 text-ink-500',
+        className
+      )}
+      title={
+        supported
+          ? `${toolCount} WebMCP tools are registered on this page`
+          : 'Open in ChatGPT\u2019s in-app browser, or Chrome 149+ with chrome://flags/#enable-webmcp-testing'
+      }
+    >
+      {supported ? (
+        <span className="relative flex h-1.5 w-1.5" aria-hidden>
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-400 opacity-75" />
+          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-brand-600" />
+        </span>
+      ) : (
+        <span className="h-1.5 w-1.5 rounded-full bg-ink-300" aria-hidden />
+      )}
+      {supported ? `${toolCount} agent tools live` : 'WebMCP not detected'}
+    </span>
+  );
+}
+
 export function AgentApprovalDialog() {
   const { pending, resolvePending } = useAgentSession();
   const confirmRef = useRef<HTMLButtonElement>(null);
@@ -148,20 +187,21 @@ export function AgentActivityPanel({ className }: { className?: string }) {
   }, [events]);
 
   return (
-    <section className={cn('p-5', className)} aria-label="Agent activity">
-      <header className="flex items-center justify-between gap-3">
-        <h2 className="font-display text-sm font-bold text-ink-900">
-          Agent activity
-        </h2>
-        <span className={supported ? 'pill-brand' : 'pill-ink'}>
-          <span
-            className={cn(
-              'h-1.5 w-1.5 rounded-full',
-              supported ? 'bg-brand-600' : 'bg-ink-400'
-            )}
-          />
-          {supported ? `${toolCount} tools live` : 'WebMCP not detected'}
-        </span>
+    <section className={cn('flex flex-col p-5', className)} aria-label="Your agent">
+      <header>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="font-display text-sm font-semibold uppercase tracking-[0.08em] text-ink-900">
+            Your agent
+          </h2>
+          {supported && (
+            <span className="text-[11px] tabular-nums text-ink-400">
+              {toolCount} tools
+            </span>
+          )}
+        </div>
+        <p className="mt-0.5 text-[11px] leading-snug text-ink-400">
+          Everything your agent does to this clinic, as it happens.
+        </p>
       </header>
 
       {!supported && (
@@ -183,7 +223,7 @@ export function AgentActivityPanel({ className }: { className?: string }) {
       {events.length > 0 && (
         <div
           ref={scrollRef}
-          className="scroll-thin mt-3 max-h-64 space-y-2 overflow-y-auto pr-1"
+          className="scroll-thin mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1"
         >
           {events.map((e) => (
             <div key={e.id} className="flex items-start gap-2.5 text-xs">

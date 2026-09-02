@@ -75,7 +75,7 @@ export function NotesWidget({
             SOAP note
           </h3>
           <div className="text-[11px] text-ink-400 mt-0.5">
-            Drafted by Featherless from intake summary + transcript
+            Drafted from the intake summary + transcript
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -129,7 +129,7 @@ export function NotesWidget({
             className="typing-dot w-2 h-2 rounded-full bg-brand-500"
             style={{ animationDelay: '0.3s' }}
           />
-          <span>Featherless is drafting the note…</span>
+          <span>Drafting the note…</span>
         </div>
       )}
 

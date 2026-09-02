@@ -7,7 +7,7 @@
 
 [![Live demo](https://img.shields.io/badge/Live%20demo-patiently--webmcp.vercel.app-0e8265)](https://patiently-webmcp.vercel.app)
 [![WebMCP Challenge](https://img.shields.io/badge/OpenAI-WebMCP%20Challenge%202026-10b981)](https://webmcp.devpost.com)
-[![Tools](https://img.shields.io/badge/WebMCP%20tools-17-0e8265)](#the-tool-surface)
+[![Tools](https://img.shields.io/badge/WebMCP%20tools-19-0e8265)](#the-tool-surface)
 [![Evals](https://img.shields.io/badge/evals-38%20passing-10b981)](#evals)
 [![License](https://img.shields.io/badge/License-MIT-cbd5e1)](LICENSE)
 
@@ -24,12 +24,19 @@ required; the demo build ships the clinician dashboard unlocked.
 
 | Surface | URL | Tools |
 | --- | --- | --- |
+| Front door | [`/`](https://patiently-webmcp.vercel.app) | 2 |
 | Clinician dashboard | [`/dashboard`](https://patiently-webmcp.vercel.app/dashboard) | 11 |
 | Patient queue + intake | `/p/<ticket-id>` — open a patient from the dashboard queue | 6 |
 
-The dashboard's **Agent activity** panel reads `17 tools live` when WebMCP is
-detected and `WebMCP not detected` otherwise, so you can confirm your browser
-is set up correctly before asking the agent anything.
+Tools are registered per surface, so the count changes as you navigate — that
+is the dynamic tool surface working, not a bug.
+
+**You do not have to find the demo yourself.** The landing page registers two
+tools of its own, so if your browser is set up you can just say *"list the demo
+surfaces"* and then *"open the clinician demo"*. Every page also shows its
+WebMCP status — a green `N agent tools live` pill in the clinic header, or a
+plain `WebMCP not detected` — so you can confirm your browser before asking the
+agent anything.
 
 **Ask your agent, on `/dashboard`:**
 - *"Who's on the clinic floor right now?"*
@@ -204,6 +211,13 @@ CHIEF COMPLAINT: chest pain radiating to left arm
 ---
 
 ## The tool surface
+
+**Front door** (`/` — 2 tools)
+
+| Tool | Tier | What it does |
+| --- | --- | --- |
+| `list_demo_surfaces` | read | What the clinic exposes, and who is in the waiting room |
+| `open_demo` | draft | Navigates the tab to the clinician or patient surface |
 
 **Clinician** (`/dashboard` — 11 tools)
 
