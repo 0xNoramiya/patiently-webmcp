@@ -117,6 +117,22 @@ ok('patient-authored text is fenced as untrusted', /not an instruction to you/i.
 ok('chart identifies the cardiac concern', /coronary|cardiac|ACS|chest/i.test(chart.text), chart.text.slice(0,300));
 ok('chart carries suggested questions', /SUGGESTED QUESTIONS/.test(chart.text));
 
+// A differential ordered by likelihood has failed at its only job: the physician
+// reads it to decide what they cannot afford to overlook. gpt-4.1 originally
+// answered this presentation with musculoskeletal pain and anxiety and no
+// pulmonary embolism at all, which is why the prompt now orders by urgency.
+const considerations = (chart.text.match(/CONSIDERATIONS[^\n]*\n([\s\S]*?)(?:\n\n|<<<END)/) || [])[1] || '';
+ok('the differential leads with must-not-miss causes',
+   /must not miss/i.test(considerations), considerations.slice(0, 220));
+ok('a dangerous cause is not omitted for being unlikely',
+   /pulmonary embolism|aortic dissection/i.test(considerations), considerations.slice(0, 220));
+const dLines = considerations.split('\n').map((l) => l.trim()).filter(Boolean);
+const lastCritical = dLines.map((l) => /must not miss/i.test(l)).lastIndexOf(true);
+const firstBenign = dLines.findIndex((l) => !/must not miss/i.test(l));
+ok('must-not-miss causes come before benign ones',
+   lastCritical === -1 || firstBenign === -1 || lastCritical < firstBenign,
+   dLines.join(' | ').slice(0, 240));
+
 const called = await callWithDialog('call_next_patient', { ticket: tnum }, 'Call patient');
 ok('call_next_patient blocked until the clinician clicked', called.pendingDuringDialog);
 ok('call_next_patient called the patient in', /called in/i.test(called.out), called.out);

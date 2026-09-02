@@ -8,7 +8,7 @@
 [![Live demo](https://img.shields.io/badge/Live%20demo-patiently--webmcp.vercel.app-0e8265)](https://patiently-webmcp.vercel.app)
 [![WebMCP Challenge](https://img.shields.io/badge/OpenAI-WebMCP%20Challenge%202026-10b981)](https://webmcp.devpost.com)
 [![Tools](https://img.shields.io/badge/WebMCP%20tools-20-0e8265)](#the-tool-surface)
-[![Evals](https://img.shields.io/badge/evals-91%20%2B%2032%20%2B%2012%20passing-10b981)](#evals)
+[![Evals](https://img.shields.io/badge/evals-91%20%2B%2035%20%2B%2012%20passing-10b981)](#evals)
 [![License](https://img.shields.io/badge/License-MIT-cbd5e1)](LICENSE)
 
 ---
@@ -305,6 +305,25 @@ The system does not escalate priority by itself here. Guessing a triage
 decision on the classifier's behalf would be the same mistake in the other
 direction — it surfaces the gap and lets a human decide.
 
+### The differential is ordered by what you cannot afford to miss
+
+Reading the generated charts after the model change found the one place quality
+had genuinely dropped: for chest pain radiating to the left arm with diaphoresis,
+the differential came back as acute coronary syndrome, musculoskeletal pain and
+anxiety — **no pulmonary embolism at all**.
+
+The prompt was the cause, not the model. It said "order most likely first" and
+"include one must-not-miss", and ACS satisfied both. But a differential ordered
+by likelihood has failed at its only job: a physician reads it to decide what
+they cannot afford to overlook, not to be told what is probable.
+
+Ordering is now by clinical urgency, with every plausible dangerous cause listed
+and labelled before any benign one. The same model, at the same 5 seconds, now
+answers chest pain with ACS, aortic dissection and pulmonary embolism — a better
+list than gpt-5 produced at 21 seconds, which omitted dissection. It generalises
+to presentations the prompt never mentions: "worst headache of my life" returns
+subarachnoid haemorrhage, stroke and meningitis before migraine.
+
 ### A chart that could not be written is absent, not empty
 
 The same failure mode, one layer up. The summarizer's stub was being saved as
@@ -595,7 +614,7 @@ stubbed `document.modelContext`, and calls every tool the way an agent would.
 
 ```bash
 cd apps/web && npm run eval            # 91 assertions, no model calls
-cd apps/web && npm run eval:live       # 32 assertions, full workflow on real models
+cd apps/web && npm run eval:live       # 35 assertions, full workflow on real models
 cd apps/web && npm run eval:injection  # 12 assertions, real prompt-injection attacks
 ```
 

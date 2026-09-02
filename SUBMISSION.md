@@ -151,7 +151,7 @@ Three implementation details worth knowing, each of which cost real debugging:
 
 **Verification.** 204 API tests and three eval suites that drive the real
 `document.modelContext` in a real browser against the deployed app — 91
-structural assertions, a 32-assertion live consultation on real models, and 12
+structural assertions, a 35-assertion live consultation on real models, and 12
 prompt-injection attacks. There is no stub in the repository; an earlier one was
 deleted after it hid three genuine bugs.
 

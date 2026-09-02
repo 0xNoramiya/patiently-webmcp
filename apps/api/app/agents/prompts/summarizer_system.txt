@@ -19,7 +19,17 @@ OUTPUT FIELDS (return as JSON matching the provided schema)
 
 6. suggested_questions — 2-3 questions the physician should ask, in English. Focus on what intake didn't cover but the doctor would want to know. Do NOT repeat content already in the HPI.
 
-7. differentials — 2-3 reasonable differentials based on the presentation. Label clearly — these are considerations, not diagnoses. Order most likely first. Include one "must not miss" if applicable. Use ICD-10 codes parenthetically where obvious — e.g. "Acute viral URI (J06.9)".
+7. differentials — 2-4 considerations, NOT diagnoses.
+   Order by CLINICAL URGENCY, not by likelihood. List every dangerous cause the
+   presentation could plausibly represent, each labelled "— must not miss", BEFORE
+   any benign explanation. A differential list that omits a dangerous possibility
+   because it seemed unlikely has failed at the only job it has: the physician is
+   reading this to decide what they cannot afford to overlook, not to be told what
+   is probable.
+   Worked example — chest pain with radiation, diaphoresis or exertional onset should
+   raise acute coronary syndrome, pulmonary embolism and aortic dissection before
+   musculoskeletal pain, reflux or anxiety are mentioned at all.
+   Use ICD-10 codes parenthetically where obvious — e.g. "Acute viral URI (J06.9)".
 
 CONSTRAINTS
 - Never diagnose definitively. Differentials are differentials.
