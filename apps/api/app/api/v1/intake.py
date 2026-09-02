@@ -1,3 +1,5 @@
+import asyncio
+import logging
 import uuid
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy import select
@@ -7,6 +9,7 @@ from sqlalchemy.orm import selectinload
 from app.agents import intake as intake_agent
 from app.agents import summarizer as summarizer_agent
 from app.core.db import SessionLocal, get_db
+from app.integrations.openai_client import DEGRADED_KEY
 from app.models.intake import IntakeSession
 from app.models.queue_ticket import QueueTicket
 from app.schemas.intake import (
@@ -16,6 +19,8 @@ from app.schemas.intake import (
     PatientMessageIn,
 )
 from app.services.events import bus
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -112,11 +117,29 @@ async def patient_message(
 
 
 async def _run_summary(session_id: uuid.UUID) -> None:
-    async with SessionLocal() as db:
+    """Write the pre-visit chart, retrying a few times first.
+
+    The patient has finished talking by the time this runs, so there is no one
+    left to prompt for a retry — if this gives up, the clinician simply has no
+    chart. Most model failures are transient, so it is worth a few attempts
+    before recording the failure.
+    """
+    delays = [0.0, 4.0, 12.0]
+    for attempt, delay in enumerate(delays, start=1):
+        if delay:
+            await asyncio.sleep(delay)
         try:
-            await summarizer_agent.summarize_session(db, session_id)
+            async with SessionLocal() as db:
+                result = await summarizer_agent.summarize_session(db, session_id)
+            if not (result or {}).get(DEGRADED_KEY):
+                return
+            logger.warning(
+                "Summary attempt %d/%d for session %s came back degraded",
+                attempt, len(delays), session_id,
+            )
         except Exception:  # noqa: BLE001
-            pass
+            logger.exception("Summary attempt %d/%d failed", attempt, len(delays))
+    logger.error("Gave up writing the pre-visit chart for session %s", session_id)
 
 
 @router.get("/intake/{ticket_id}/session", response_model=IntakeSessionOut)

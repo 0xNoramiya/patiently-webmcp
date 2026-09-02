@@ -282,6 +282,22 @@ The system does not escalate priority by itself here. Guessing a triage
 decision on the classifier's behalf would be the same mistake in the other
 direction — it surfaces the gap and lets a human decide.
 
+### A chart that could not be written is absent, not empty
+
+The same failure mode, one layer up. The summarizer's stub was being saved as
+the patient's chart — `chief_complaint: "Pending summary"`, `triage_assessment:
+"Not evaluated."` — `summary_ready` was published as though it had worked, and
+every downstream `if (summary)` check passed, including the guard that stops a
+SOAP note being drafted from an empty chart.
+
+A degraded result is now never persisted. The chart stays genuinely absent,
+`_summary_failed` is recorded, and the background write retries three times with
+backoff before giving up — by the time it runs the patient has stopped talking,
+so there is nobody left to prompt for a retry. The clinician's agent gets *"The
+pre-visit chart FAILED to generate… it will not appear on its own. Their answers
+were still recorded; take the history yourself"* rather than the indistinguishable
+*"no chart yet"*, and `draft_soap_note` says retrying will not help.
+
 ### Untrusted content is fenced, not filtered
 
 The pre-visit chart contains text a *patient* typed, flowing toward a

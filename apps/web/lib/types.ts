@@ -160,6 +160,22 @@ export interface AgentResponse {
   triage_unavailable?: boolean;
 }
 
+/**
+ * True when the pre-visit chart could not be written.
+ *
+ * Distinct from "no chart yet": intake finished, but the summarizer was
+ * unreachable, so this patient will never get one unless it is retried.
+ */
+export function intakeSummaryFailed(
+  session: Pick<IntakeSession, 'structured_data'> | null | undefined
+): boolean {
+  return Boolean(
+    (session?.structured_data as Record<string, unknown> | undefined)?.[
+      '_summary_failed'
+    ]
+  );
+}
+
 /** True when any turn of this intake went unscreened by the triage classifier. */
 export function intakeWasUnscreened(
   session: Pick<IntakeSession, 'structured_data'> | null | undefined

@@ -23,6 +23,7 @@ import { useRef } from 'react';
 
 import { api } from '@/lib/api';
 import {
+  intakeSummaryFailed,
   intakeWasUnscreened,
   POLI_LABEL,
   RED_FLAG_LABELS,
@@ -432,6 +433,11 @@ export function useClinicianTools(deps: ClinicianToolDeps) {
               `${entry.ticket.ticket_number} is still in intake. Drafting now would produce a note with no patient-reported history. Wait until intake completes, then try again.`
             );
           }
+          if (intakeSummaryFailed(session)) {
+            throw new Error(
+              `The pre-visit chart for ${entry.ticket.ticket_number} failed to generate, so there is nothing to draft a note from — retrying will not help. The patient's intake answers were still recorded; take the history yourself.`
+            );
+          }
           throw new Error(
             `The pre-visit chart for ${entry.ticket.ticket_number} is still being written (this takes a few seconds after intake ends). Drafting now would omit the patient's own account of their symptoms. Try again shortly.`
           );
@@ -757,7 +763,14 @@ function renderChart(head: string, session: IntakeSession | null): string {
     : '';
 
   if (!session?.summary) {
-    return `${head}${unscreened}\n\nNo pre-visit chart yet — this patient has not completed intake.`;
+    // "Not written yet" and "could not be written" lead to different actions:
+    // one is worth waiting for, the other is not.
+    const why = intakeSummaryFailed(session)
+      ? 'The pre-visit chart FAILED to generate — the summarizer was unavailable when this ' +
+        "patient finished intake, and it will not appear on its own. Their answers were still " +
+        'recorded; take the history yourself.'
+      : 'No pre-visit chart yet — this patient has not completed intake.';
+    return `${head}${unscreened}\n\n${why}`;
   }
   const s = session.summary;
   const body = [

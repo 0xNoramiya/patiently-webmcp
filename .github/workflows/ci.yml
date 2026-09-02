@@ -27,6 +27,14 @@ jobs:
           pip install -r requirements.txt
           pip install pytest pytest-asyncio
 
+      # Two NameErrors reached the deployed app in one afternoon — both in
+      # error-handling paths, so neither showed up until something else had
+      # already gone wrong. TypeScript guards the frontend against this;
+      # nothing was guarding Python.
+      - name: Undefined names
+        working-directory: apps/api
+        run: python -m pyflakes app/ seed/ tests/ | grep -i 'undefined name' && exit 1 || exit 0
+
       - name: Import smoke test
         working-directory: apps/api
         env:

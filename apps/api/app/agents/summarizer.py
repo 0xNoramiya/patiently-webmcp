@@ -6,6 +6,8 @@ the Triage Agent, and the EMR context.
 """
 from __future__ import annotations
 
+import logging
+
 import os
 import uuid
 from typing import Any
@@ -22,11 +24,13 @@ from app.agents.context import (
     render_previous_visit_block,
 )
 from app.core.config import get_settings
-from app.integrations.openai_client import generate_json
+from app.integrations.openai_client import DEGRADED_KEY, generate_json
 from app.agents.schemas import SUMMARY_SCHEMA
 from app.models.intake import IntakeMessage, IntakeSession, MessageRole
 from app.models.queue_ticket import QueueTicket
 from app.services.events import bus
+
+logger = logging.getLogger(__name__)
 
 _PROMPT_PATH = os.path.join(
     os.path.dirname(__file__), "prompts", "summarizer_system.txt"
@@ -102,7 +106,36 @@ async def summarize_session(
         temperature=0.3,
     )
 
+    # A stub is not a chart. Persisting one would give the patient a permanent
+    # record reading "Summary service unavailable" under a heading that says
+    # TRIAGE ASSESSMENT, announce summary_ready as though it had worked, and
+    # satisfy every downstream `if (summary)` check — including the guard that
+    # stops a SOAP note being drafted from an empty chart. Record the failure
+    # instead and leave the chart genuinely absent, so it reads as missing
+    # rather than as written-and-empty.
+    if summary.get(DEGRADED_KEY):
+        logger.error(
+            "Summarizer unavailable for ticket %s — no pre-visit chart was written.",
+            ticket.id,
+        )
+        session.structured_data = {
+            **(session.structured_data or {}),
+            "_summary_failed": True,
+        }
+        await db.commit()
+        await bus.publish_many(
+            [f"poli:{ticket.poli.value}", "dashboard", f"ticket:{ticket.id}"],
+            "summary_failed",
+            {"ticket_id": str(ticket.id), "poli": ticket.poli.value},
+        )
+        return summary
+
     session.summary = summary
+    session.structured_data = {
+        k: v
+        for k, v in (session.structured_data or {}).items()
+        if k != "_summary_failed"
+    }
     await db.commit()
 
     await bus.publish_many(

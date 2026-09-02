@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Logo } from '@/components/Logo';
 import { api } from '@/lib/api';
 import {
+  intakeSummaryFailed,
   intakeWasUnscreened,
   POLI_LABEL,
   RED_FLAG_LABELS,
@@ -616,6 +617,18 @@ function DetailPane({
             </div>
             <div className="text-sm text-ink-900 mt-1">
               {flags.map((f) => RED_FLAG_LABELS[f] || f).join(' · ')}
+            </div>
+          </div>
+        )}
+        {intakeSummaryFailed(session) && (
+          <div className="mt-3 rounded-xl border border-warn-100 bg-warn-50 px-4 py-3">
+            <div className="text-xs font-bold uppercase tracking-wide text-warn-600">
+              ⚠ Pre-visit chart failed to generate
+            </div>
+            <div className="mt-1 text-sm text-ink-900">
+              This patient finished intake, but the summarizer was unavailable
+              and the chart will not appear on its own. Their answers were still
+              recorded &mdash; take the history yourself.
             </div>
           </div>
         )}
