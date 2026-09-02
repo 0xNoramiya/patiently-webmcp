@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start -p 3000",
     "lint": "next lint",
-    "eval": "node evals/run.mjs"
+    "eval": "node evals/run.mjs",
+    "eval:live": "node evals/walkthrough.mjs"
   },
   "dependencies": {
     "@mcp-b/webmcp-polyfill": "^5.1.0",

@@ -371,8 +371,17 @@ proves it. `apps/web/evals/` runs the **real app in a real browser** against a
 stubbed `document.modelContext`, and calls every tool the way an agent would.
 
 ```bash
-cd apps/web && npm run eval
+cd apps/web && npm run eval        # 66 assertions, no model calls
+cd apps/web && npm run eval:live   # 32 assertions, full workflow on real models
 ```
+
+`eval` drives the tool surface, the approval gate and the discovery endpoints
+without spending a token. `eval:live` walks a whole consultation through
+`document.modelContext` end to end — a patient describes chest pain, triage
+escalates server-side, the chart is written, the clinician records vitals,
+drafts a note and prescriptions, signs one, and closes the visit — clicking
+through every confirmation dialog on the way. Both drive the real runtime the
+site installs; there is no stub in this repository.
 
 ```
 Clinician surface — human-in-the-loop gate
