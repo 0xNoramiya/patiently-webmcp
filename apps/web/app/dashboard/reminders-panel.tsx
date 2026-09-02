@@ -86,7 +86,7 @@ export function RemindersPanel({ adminPassword }: { adminPassword: string }) {
             Appointment reminders
           </h3>
           <div className="text-[11px] text-ink-400 mt-0.5">
-            Scheduler runs every 60s
+            Scheduler runs every 60s · drafted, not delivered
           </div>
         </div>
         <button
@@ -144,10 +144,15 @@ export function RemindersPanel({ adminPassword }: { adminPassword: string }) {
         </div>
       )}
 
+      <p className="mt-2 text-[11px] leading-snug text-ink-400">
+        No SMS provider is wired up in this demo, so these are written and
+        stored — nothing is delivered to a patient.
+      </p>
+
       {sent.length > 0 && (
         <div className="space-y-2">
           <div className="text-[10px] uppercase tracking-wider text-ink-400 font-bold">
-            Sent ({sent.length})
+            Drafted ({sent.length})
           </div>
           {sent.map((r) => (
             <div
@@ -160,7 +165,7 @@ export function RemindersPanel({ adminPassword }: { adminPassword: string }) {
                     <span className="text-sm font-medium text-ink-900">
                       {r.patient.name}
                     </span>
-                    <span className="pill-brand text-[10px]">sent</span>
+                    <span className="pill-brand text-[10px]">drafted</span>
                   </div>
                   <div className="text-xs text-ink-500 truncate">{r.reason}</div>
                   <div className="text-[11px] text-ink-400 mt-1">

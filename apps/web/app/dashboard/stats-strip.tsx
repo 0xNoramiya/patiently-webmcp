@@ -167,7 +167,7 @@ export function StatsStrip({ adminPassword }: { adminPassword: string }) {
         <Tally label="intakes completed" value={stats.intakes_completed_today} />
         <Tally label="SOAP notes" value={stats.notes_today} />
         <Tally label="transcripts" value={stats.transcripts_today} />
-        <Tally label="reminders sent" value={stats.reminders.sent_today} />
+        <Tally label="reminders drafted" value={stats.reminders.sent_today} />
         {stats.reminders.pending > 0 && (
           <span className="tabular-nums text-ink-400">
             {stats.reminders.pending} pending

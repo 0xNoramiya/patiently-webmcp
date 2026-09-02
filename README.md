@@ -305,6 +305,26 @@ The system does not escalate priority by itself here. Guessing a triage
 decision on the classifier's behalf would be the same mistake in the other
 direction — it surfaces the gap and lets a human decide.
 
+### The one thing that is not human-gated, and why
+
+Every write that touches a patient's care blocks on a click. Appointment
+reminders do not — the scheduler drafts them on a timer, with no clinician in
+the loop. That is a real exception to the claim, so it is worth stating rather
+than leaving for someone to find.
+
+It is defensible on two grounds, both of which are enforced rather than assumed.
+The content is administrative: the prompt caps messages at 280 characters,
+requires an opt-out, and forbids medical advice, emojis and marketing language —
+constraints a test now pins, because they only hold while the prompt does. And
+in this deployment nothing is delivered at all: there is no SMS provider wired
+up, so a "drafted" reminder is written and stored, never sent. The dashboard
+says so, having previously said "reminders sent".
+
+Real output, generated on production:
+
+> *"Hi Henry, just a reminder of your hypertension follow-up for a BP recheck on
+> Wednesday, September 16 at 5:06 AM. Reply STOP to cancel."*
+
 ### The patient's language is the patient's; the chart is the clinician's
 
 "Intake in your own language" was claimed on the landing page, in the tool
