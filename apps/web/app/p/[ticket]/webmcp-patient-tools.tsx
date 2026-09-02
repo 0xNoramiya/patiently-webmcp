@@ -176,10 +176,26 @@ export function PatientAgentTools({ ticketId }: { ticketId: string }) {
           const labels = reply.triage_flags
             .map((f) => RED_FLAG_LABELS[f] || f)
             .join(', ');
+          // "if symptoms worsen" is the wrong instruction for some of these.
+          // Someone who has just disclosed suicidal ideation should not be told
+          // to wait and see whether it gets worse, and neither should bleeding
+          // in pregnancy or a child who is hard to rouse.
+          const waitAndSee = !reply.triage_flags.some((f) =>
+            ['SUICIDAL_IDEATION', 'OBSTETRIC_BLEEDING', 'PEDS_RED_FLAG'].includes(f)
+          );
+          const action = reply.triage_flags.includes('SUICIDAL_IDEATION')
+            ? 'Stay with the patient. Tell them they can speak to reception staff ' +
+              'right now rather than waiting to be called, and that local crisis ' +
+              'support lines are available if they would rather talk to someone ' +
+              'immediately. Do not leave this until their appointment.'
+            : waitAndSee
+              ? 'Tell the patient to notify reception immediately if symptoms worsen.'
+              : 'Tell the patient to speak to reception staff now rather than waiting to be called.';
+
           out.push(
             `\n⚠ The clinic's triage system flagged this as urgent (${labels}). ` +
               `Staff have been alerted and this ticket has been moved up the queue. ` +
-              `Tell the patient to notify reception immediately if symptoms worsen.`
+              action
           );
         } else if (before && before.priority > 0) {
           out.push('\nThis ticket is already prioritised.');

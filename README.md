@@ -305,6 +305,28 @@ The system does not escalate priority by itself here. Guessing a triage
 decision on the classifier's behalf would be the same mistake in the other
 direction — it surfaces the gap and lets a human decide.
 
+### All eight red flags, and what the patient is told to do about them
+
+Seventeen iterations in, only `CHEST_PAIN_CARDIAC` had ever been observed
+firing. All eight were then exercised against real models on production with
+realistic patient wording — stroke, respiratory distress, anaphylaxis, suicidal
+ideation, severe dehydration, obstetric bleeding, a paediatric red flag — and
+each returned exactly its own code and nothing else.
+
+Two things that testing surfaced were not about detection at all:
+
+- **The escalation advice was one sentence for every flag:** *"notify reception
+  immediately if symptoms worsen."* That is the wrong instruction for someone
+  who has just disclosed suicidal ideation, for bleeding in pregnancy, or for a
+  child who is hard to rouse — none of those should be waited on. The guidance is
+  flag-aware now, and for suicidal ideation it says to stay with the patient,
+  speak to staff immediately rather than waiting to be called, and that crisis
+  support exists.
+- **Obstetric bleeding and suicidal ideation sat at priority 50**, behind severe
+  dehydration at 100, with nothing recorded about why. Every code in the table is
+  a red flag by construction. They are all 100 now — a judgement call made by an
+  engineer, flagged as such in the code, and one a clinician should confirm.
+
 ### Every vital is bounded on both sides
 
 The critical-value flagger had been exercised only with high readings — 210/125,

@@ -25,9 +25,17 @@ def test_critical_flags_get_priority_100():
         assert RED_FLAG_PRIORITY[code] == 100, f"{code} must be critical"
 
 
-def test_urgent_flags_get_priority_50():
-    assert RED_FLAG_PRIORITY["OBSTETRIC_BLEEDING"] == 50
-    assert RED_FLAG_PRIORITY["SUICIDAL_IDEATION"] == 50
+def test_no_red_flag_is_second_tier():
+    """These two used to be 50, behind severe dehydration at 100.
+
+    Nothing recorded why. Bleeding at 22 weeks can be abruption or previa, and
+    someone who has just disclosed suicidal ideation should not sit in a waiting
+    room behind a queue. Every code in the table is a red flag by construction,
+    so a lower tier needed a clinical rationale and had none.
+    """
+    assert RED_FLAG_PRIORITY["OBSTETRIC_BLEEDING"] == 100
+    assert RED_FLAG_PRIORITY["SUICIDAL_IDEATION"] == 100
+    assert set(RED_FLAG_PRIORITY.values()) == {100}
 
 
 def test_max_priority_picks_highest_when_multiple_fire():
@@ -55,9 +63,9 @@ def test_flag_label_falls_back_to_code_for_unknown():
     "flags,expected",
     [
         (["CHEST_PAIN_CARDIAC"], 100),
-        (["OBSTETRIC_BLEEDING"], 50),
+        (["OBSTETRIC_BLEEDING"], 100),
         (["OBSTETRIC_BLEEDING", "STROKE_SYMPTOMS"], 100),
-        (["SUICIDAL_IDEATION"], 50),
+        (["SUICIDAL_IDEATION"], 100),
         ([], 0),
     ],
 )

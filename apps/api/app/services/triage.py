@@ -1,6 +1,17 @@
 """Triage priority mapping.
 
-Higher number = served sooner. Critical flags get 100, urgent 50.
+Higher number = served sooner.
+
+Obstetric bleeding and suicidal ideation used to sit at 50, behind severe
+dehydration at 100. That ordering is hard to defend: bleeding in pregnancy can
+be abruption or previa, and someone who has just disclosed suicidal ideation
+should not be left sitting in a waiting room behind a queue. Every code in this
+table is a red flag by construction — a two-tier split needs a clinical
+rationale, and there was none written down for those two.
+
+They are all 100 now. This is a judgement call made by an engineer, not a
+clinician, and a real deployment should have it reviewed; the structure supports
+tiering if a clinician wants it back.
 """
 RED_FLAG_PRIORITY = {
     "CHEST_PAIN_CARDIAC": 100,
@@ -9,8 +20,8 @@ RED_FLAG_PRIORITY = {
     "ANAPHYLAXIS_SUSPECT": 100,
     "PEDS_RED_FLAG": 100,
     "SEVERE_DEHYDRATION": 100,
-    "OBSTETRIC_BLEEDING": 50,
-    "SUICIDAL_IDEATION": 50,
+    "OBSTETRIC_BLEEDING": 100,
+    "SUICIDAL_IDEATION": 100,
 }
 
 RED_FLAG_LABEL = {
