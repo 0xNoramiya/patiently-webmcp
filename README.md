@@ -573,9 +573,17 @@ Four implementation details worth calling out:
 
   | Role | Model | Why |
   | --- | --- | --- |
-  | Conversational intake | `gpt-5-mini` | Fluency and warmth matter more than reasoning depth |
-  | Chart, SOAP, prescriptions | `gpt-5` | The reasoning-heavy clinical writing |
-  | Triage classifier | `gpt-4.1-mini` | **Still honours `temperature=0`.** Reasoning models force it to 1, and a red-flag decision that cannot be reproduced cannot be audited |
+  | Conversational intake | `gpt-4.1` | 2.7s vs 17.4s on gpt-5-mini, extracting the same six OPQRST fields |
+  | Chart, SOAP, prescriptions | `gpt-4.1` | 3.0s vs 20.6s on gpt-5, same clinical content |
+  | Triage classifier | `gpt-4.1-mini` | **Honours `temperature=0`.** Reasoning models force it to 1, and a red-flag decision that cannot be reproduced cannot be audited |
+
+  The reasoning models were measured, not assumed unsuitable. On a real
+  chest-pain note gpt-5 took 20.6s to gpt-4.1's 3.0s and both identified acute
+  coronary syndrome with ECG and EMS in the plan; gpt-5 writes a longer note, not
+  a better one. End to end that was 120 seconds of tool latency versus 41 — a
+  clinician mid-consultation will not wait through the difference. The
+  reasoning-model dialect handling stays in the client and under test, so
+  `OPENAI_MODEL_CLINICAL=gpt-5` trades the latency straight back.
 
 ---
 
@@ -693,7 +701,7 @@ Browser (ChatGPT in-app / Chrome 149+)
 | Agent interface | WebMCP (`document.modelContext`) |
 | API | FastAPI 0.115, Pydantic v2, SQLAlchemy 2.0 async |
 | Database | PostgreSQL 16 |
-| Models | OpenAI — GPT-5 / GPT-5-mini / GPT-4.1-mini, Structured Outputs |
+| Models | OpenAI — GPT-4.1 / GPT-4.1-mini, Structured Outputs |
 | Speech | OpenAI TTS (mock consultation audio) · Speechmatics ASR with diarization |
 | Realtime | Server-Sent Events |
 | Hosting | Vercel (web) · Fly.io (API + Postgres, Singapore) |

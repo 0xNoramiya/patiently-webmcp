@@ -9,10 +9,16 @@ class Settings(BaseSettings):
     SYNC_DATABASE_URL: str = "postgresql://patiently:patiently@db:5432/patiently"
     OPENAI_API_KEY: str = ""
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
-    # Conversational intake — warmth and fluency matter more than reasoning depth.
-    OPENAI_MODEL: str = "gpt-5-mini"
-    # Chart writing, SOAP notes, prescription drafting — the reasoning-heavy work.
-    OPENAI_MODEL_CLINICAL: str = "gpt-5"
+    # Conversational intake. Measured against gpt-5-mini on the real intake turn:
+    # 2.7s vs 17.4s, extracting the same six OPQRST fields. A patient in a
+    # waiting room typing on a phone will not wait 17 seconds for a reply.
+    OPENAI_MODEL: str = "gpt-4.1"
+    # Chart writing, SOAP notes, prescription drafting. Measured on a real chest-pain
+    # note: 3.0s vs gpt-5's 20.6s, with the same clinical content — acute coronary
+    # syndrome identified, ECG and EMS in the plan. gpt-5 writes a longer note; it is
+    # not a better one, and a clinician mid-consultation will not wait 20 seconds for
+    # the difference. Set OPENAI_MODEL_CLINICAL=gpt-5 to trade the latency back.
+    OPENAI_MODEL_CLINICAL: str = "gpt-4.1"
     # The red-flag classifier is a safety component, so it is pinned to a model
     # that still honours temperature=0. Reasoning models force temperature to 1,
     # and a triage decision that cannot be reproduced cannot be audited.

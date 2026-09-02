@@ -142,9 +142,12 @@ Three implementation details worth knowing, each of which cost real debugging:
   listener first.
 - **Reasoning models speak a different dialect** — no `temperature`,
   `max_completion_tokens`, and no output at all while thinking. The client shapes
-  each request per model, and the triage classifier is pinned to one that still
+  each request per model, and the triage classifier is pinned to one that
   honours `temperature=0`, because a red-flag decision that cannot be reproduced
-  cannot be audited.
+  cannot be audited. They were also measured and rejected on latency: gpt-5 took
+  20.6s to write a chest-pain SOAP note against gpt-4.1's 3.0s, with the same
+  clinical content. Across the whole consultation that is 120 seconds of waiting
+  versus 41.
 
 **Verification.** 204 API tests and three eval suites that drive the real
 `document.modelContext` in a real browser against the deployed app — 91
