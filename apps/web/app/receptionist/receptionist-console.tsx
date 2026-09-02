@@ -14,6 +14,8 @@ import {
 } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
+import { IssueTicketForm } from './issue-ticket-form';
+
 // Demo build — no sign-in. The reception endpoints still require the
 // X-Receptionist-Token header, so we hard-code the seed's value.
 const DEMO_TOKEN =
@@ -109,6 +111,8 @@ export function ReceptionistConsole() {
             {error}
           </div>
         )}
+
+        <IssueTicketForm token={token} onIssued={setIssued} />
 
         <div className="card overflow-hidden">
           <div className="px-5 pt-4 pb-3 border-b border-ink-100">

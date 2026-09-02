@@ -9,6 +9,8 @@ import { SITE_URL } from '@/lib/webmcp/catalog';
  * their crawlers to go away. The one place they are kept out is `/p/` — those
  * are individual patients' waiting-room pages, and they should not be indexed
  * or trained on by anyone, regardless of how synthetic this demo's data is.
+ * The reception desk is public: it is the declarative WebMCP surface, so it
+ * should be discoverable.
  */
 export default function robots(): MetadataRoute.Robots {
   const agents = [
@@ -28,11 +30,11 @@ export default function robots(): MetadataRoute.Robots {
 
   return {
     rules: [
-      { userAgent: '*', allow: '/', disallow: ['/p/', '/receptionist'] },
+      { userAgent: '*', allow: '/', disallow: ['/p/'] },
       ...agents.map((userAgent) => ({
         userAgent,
         allow: ['/', '/llms.txt', '/.well-known/webmcp'],
-        disallow: ['/p/', '/receptionist'],
+        disallow: ['/p/'],
       })),
     ],
     sitemap: `${SITE_URL}/sitemap.xml`,

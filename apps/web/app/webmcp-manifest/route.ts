@@ -34,6 +34,7 @@ function manifest() {
       api: 'document.modelContext',
       specification: 'https://github.com/webmachinelearning/webmcp',
       registration: 'per-page',
+      declarative: 'The reception desk form at /receptionist uses the declarative API (toolname / toolparamdescription); every other tool is registered imperatively.',
       note: 'Tools are scoped to the page that registers them. Call document.modelContext.getTools() after navigating. If the browser has no native implementation, the site installs a polyfill itself.',
     },
 
@@ -61,6 +62,9 @@ function manifest() {
         name: t.name,
         description: t.description,
         tier: t.tier,
+        // The reception form is declarative: the browser synthesizes its schema
+        // from the form controls rather than the page declaring one.
+        declarative: s.path === '/receptionist',
         annotations: {
           readOnlyHint: t.tier === 'read',
           ...(t.name === 'get_previsit_chart' ? { untrustedContentHint: true } : {}),

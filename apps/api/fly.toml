@@ -17,6 +17,7 @@ primary_region = "sin"
   OPENAI_MODEL_TRIAGE = "gpt-4.1-mini"
   OPENAI_TTS_MODEL = "gpt-4o-mini-tts"
   CLINIC_NAME = "Patiently Demo Clinic"
+  PATIENTLY_STATIC_DIR = "/app/static"
 
 # Migrations run once per deploy, before the new machines take traffic.
 [deploy]
@@ -38,6 +39,13 @@ primary_region = "sin"
     type = "requests"
     hard_limit = 250
     soft_limit = 200
+
+# Generated consultation audio lives here. Without a volume Fly's filesystem is
+# ephemeral, so every deploy wiped the MP3s while their database rows survived —
+# leaving the dashboard with an audio player pointing at a 404.
+[mounts]
+  source = "patiently_static"
+  destination = "/app/static"
 
 [[vm]]
   size = "shared-cpu-1x"

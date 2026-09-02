@@ -174,6 +174,20 @@ export const SURFACES: CatalogSurface[] = [
       },
     ],
   },
+  {
+    path: '/receptionist',
+    title: 'Reception desk',
+    summary:
+      "The one declarative surface: a plain HTML form carrying `toolname` and `toolparamdescription` attributes, so the browser derives the tool's schema from the form controls themselves. An agent fills it in; the receptionist presses the button.",
+    tools: [
+      {
+        name: 'issue_queue_ticket',
+        description:
+          'Issue a new queue ticket for a registered patient at reception. Declarative: the agent fills the form and a human submits it, because this gives a real patient a queue number.',
+        tier: 'commit',
+      },
+    ],
+  },
 ];
 
 export const ALL_TOOLS: CatalogTool[] = SURFACES.flatMap((s) => s.tools);

@@ -404,6 +404,18 @@ async function main() {
     JSON.stringify(bySurface['/p/{ticket}'])
   );
   check(
+    'manifest lists the declarative reception tool',
+    JSON.stringify(bySurface['/receptionist']) === JSON.stringify(['issue_queue_ticket']),
+    JSON.stringify(bySurface['/receptionist'])
+  );
+  check(
+    'the reception tool is marked declarative and human-gated',
+    (manifest.surfaces || [])
+      .find((x) => x.path === '/receptionist')
+      ?.tools.every((t) => t.declarative === true && t.requiresHumanConfirmation === true),
+    'declarative/confirmation flags wrong'
+  );
+  check(
     'manifest tool_count equals the sum of its surfaces',
     manifest.tool_count === Object.values(bySurface).flat().length,
     `${manifest.tool_count} vs ${Object.values(bySurface).flat().length}`
@@ -452,6 +464,80 @@ async function main() {
     catch { return false; }
   })(), 'JSON-LD missing or malformed');
   check('the manifest is advertised from the document head', head.manifestLink === 'application/json', String(head.manifestLink));
+
+  // -----------------------------------------------------------------------
+  section('Declarative surface — a plain form as a tool');
+  await page.goto(`${BASE}/receptionist`, { waitUntil: 'domcontentloaded' });
+  await waitForTools(page, 1);
+
+  const recepTools = await listTools(page);
+  check(
+    'the reception form registers as a tool',
+    recepTools.some((t) => t.name === 'issue_queue_ticket'),
+    recepTools.map((t) => t.name).join(', ')
+  );
+
+  const decl = recepTools.find((t) => t.name === 'issue_queue_ticket');
+  const props = decl?.inputSchema?.properties ?? {};
+  check(
+    'the browser derived the schema from the form controls',
+    ['patient', 'department', 'payer'].every((k) => k in props),
+    Object.keys(props).join(', ')
+  );
+  check(
+    'select options became an enum',
+    Array.isArray(props.department?.enum) && props.department.enum.includes('anak'),
+    JSON.stringify(props.department?.enum)
+  );
+  check(
+    'toolparamdescription became the property description',
+    /patient's full name/i.test(props.patient?.description ?? ''),
+    props.patient?.description
+  );
+  check(
+    'required fields carried through',
+    JSON.stringify((decl?.inputSchema?.required ?? []).sort()) ===
+      JSON.stringify(['department', 'patient', 'payer']),
+    JSON.stringify(decl?.inputSchema?.required)
+  );
+
+  // Invoking it must fill the form and then WAIT — there is no toolautosubmit.
+  const patientName = await page.evaluate(async () => {
+    const r = await fetch('/api/admin/patients', {
+      headers: { 'X-Receptionist-Token': 'demo-receptionist-token' },
+    });
+    const list = await r.json();
+    return list[0]?.name;
+  });
+  check('found a registered patient to issue for', !!patientName, patientName);
+
+  await page.evaluate(async ([name]) => {
+    window.__d = { done: false, out: null };
+    const tool = (await document.modelContext.getTools()).find((t) => t.name === 'issue_queue_ticket');
+    window.__dp = document.modelContext
+      .executeTool(tool, JSON.stringify({ patient: name, department: 'umum', payer: 'umum' }))
+      .then((r) => { window.__d = { done: true, out: String(r) }; })
+      .catch((e) => { window.__d = { done: true, out: 'ERROR: ' + e.message }; });
+  }, [patientName]);
+  await page.waitForTimeout(2000);
+
+  const staged = await page.evaluate(() => ({
+    patient: document.querySelector('input[name=patient]')?.value,
+    pending: !window.__d.done,
+    badge: /Agent filled this in/.test(document.body.innerText),
+  }));
+  check('the agent filled the form in', staged.patient === patientName, staged.patient);
+  check('the call is still PENDING — no autosubmit', staged.pending);
+  check('the human is told an agent filled it in', staged.badge);
+
+  await page.getByRole('button', { name: 'Issue ticket' }).first().click();
+  await page.evaluate(() => window.__dp);
+  const declOut = await page.evaluate(() => window.__d.out);
+  check(
+    'submitting hands the outcome back to the agent via respondWith',
+    /Issued ticket [A-E]-\d{3}/.test(declOut || ''),
+    declOut
+  );
 
   // -----------------------------------------------------------------------
   section('Tool lifecycle');

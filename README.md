@@ -7,8 +7,8 @@
 
 [![Live demo](https://img.shields.io/badge/Live%20demo-patiently--webmcp.vercel.app-0e8265)](https://patiently-webmcp.vercel.app)
 [![WebMCP Challenge](https://img.shields.io/badge/OpenAI-WebMCP%20Challenge%202026-10b981)](https://webmcp.devpost.com)
-[![Tools](https://img.shields.io/badge/WebMCP%20tools-19-0e8265)](#the-tool-surface)
-[![Evals](https://img.shields.io/badge/evals-38%20passing-10b981)](#evals)
+[![Tools](https://img.shields.io/badge/WebMCP%20tools-20-0e8265)](#the-tool-surface)
+[![Evals](https://img.shields.io/badge/evals-78%20%2B%2032%20passing-10b981)](#evals)
 [![License](https://img.shields.io/badge/License-MIT-cbd5e1)](LICENSE)
 
 ---
@@ -27,6 +27,7 @@ required; the demo build ships the clinician dashboard unlocked.
 | Front door | [`/`](https://patiently-webmcp.vercel.app) | 2 |
 | Clinician dashboard | [`/dashboard`](https://patiently-webmcp.vercel.app/dashboard) | 11 |
 | Patient queue + intake | `/p/<ticket-id>` — open a patient from the dashboard queue | 6 |
+| Reception desk (declarative) | [`/receptionist`](https://patiently-webmcp.vercel.app/receptionist) | 1 |
 
 Tools are registered per surface, so the count changes as you navigate — that
 is the dynamic tool surface working, not a bug.
@@ -287,6 +288,12 @@ CHIEF COMPLAINT: chest pain radiating to left arm
 | `set_intake_language` | draft | Switches between English and Bahasa Indonesia |
 | `finish_intake` | **commit** | Sends the chart to the doctor — patient confirms first |
 
+**Reception desk** (`/receptionist` — 1 tool, **declarative**)
+
+| Tool | Tier | What it does |
+| --- | --- | --- |
+| `issue_queue_ticket` | **commit** | Issues a queue ticket for a registered patient — the agent fills the form, the receptionist submits it |
+
 Tool lifetime is bound to component lifetime, so the surface is **dynamic**:
 clinician tools exist only while the dashboard is mounted, patient tools only on
 that patient's own ticket. The agent is never offered a tool that cannot
@@ -334,6 +341,53 @@ document.modelContext.registerTool({
   },
 }, { signal: controller.signal });
 ```
+
+### The declarative half
+
+Nineteen of the tools are registered imperatively. The twentieth is a plain HTML
+form:
+
+```html
+<form
+  toolname="issue_queue_ticket"
+  tooldescription="Issue a new queue ticket for a registered patient at reception."
+>
+  <input name="patient" required
+         toolparamdescription="The registered patient's full name, or their patient ID." />
+  <select name="department" required
+          toolparamdescription="Which clinic department the patient is being seen in.">
+    <option value="umum">General Clinic</option>
+    …
+  </select>
+  <button type="submit">Issue ticket</button>
+</form>
+```
+
+The browser synthesizes the input schema from the controls themselves — the
+`<select>` options become an `enum`, `required` fields become the schema's
+`required` array, and each `toolparamdescription` becomes that property's
+description.
+
+There is deliberately **no `toolautosubmit`**. Issuing a ticket gives a real
+person a queue number, so it sits in the same tier as signing a prescription:
+the agent prepares it, a human commits it. The form listens for the runtime's
+`toolactivated` event and visibly announces that an agent filled it in, so the
+receptionist knows what they are about to submit and who suggested it.
+
+Two things about wiring this into React are worth recording, because both cost
+real debugging time and neither is obvious:
+
+- **`toolactivated` is dispatched on `window`, not on the form.** Listening on
+  the form silently never fires.
+- **`respondWith()` cannot be called from React's `onSubmit`.** The runtime
+  listens for `submit` on `document` in the capture phase and queues a
+  microtask to settle the tool call; microtasks drain between event listeners,
+  so that microtask runs before the event even reaches the form — long before
+  React's delegated handler. `lib/webmcp/declarative.ts` therefore registers its
+  own capture listener *before* the runtime installs, which is early enough for
+  the response to be honoured. And the handler clears its fields directly
+  instead of calling `form.reset()`, because a reset dispatches a trusted
+  `reset` event that the runtime reads as the human cancelling the call.
 
 Four implementation details worth calling out:
 

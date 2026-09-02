@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 
 import { ServiceWorkerRegistrar } from '@/components/ServiceWorkerRegistrar';
+import { WebMCPRuntime } from '@/components/WebMCPRuntime';
 import { SITE_URL, TOOL_COUNT } from '@/lib/webmcp/catalog';
 
 import './globals.css';
@@ -198,6 +199,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="min-h-screen antialiased">
         {children}
+        <WebMCPRuntime />
         <ServiceWorkerRegistrar />
       </body>
     </html>
