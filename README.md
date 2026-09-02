@@ -325,6 +325,25 @@ matters more:
 
 `npm run eval:injection` runs all three attacks against real models.
 
+### The printable chart says what is signed and what is not
+
+The visit PDF is the one artefact that leaves the system on paper, so it has to
+be readable without the app around it. Exporting a real chart from production
+and reading it back found five things:
+
+- Black boxes where the clinical models had used `SpO₂`, `12‑lead`, `D‑dimer`,
+  `X‑ray` — subscripts and non-breaking hyphens the PDF's base font cannot draw.
+  Worse, the **critical vitals** line was prefixed with `⚠`, so the most
+  important warning on the page rendered as a square. All text is now reduced to
+  drawable characters, and a test walks the module for literals that would
+  regress it — which is how the `⚠` was found, after the first fix.
+- `Department: Umum` — the internal enum, on a document a patient may be handed.
+- `Adherence:` with nothing after it, because the key existed and was null.
+- Unsigned prescriptions in a plain row, distinguishable only by a quiet status
+  column. They are now `UNSIGNED DRAFT`, shaded, with a caption saying they have
+  not been prescribed and must not be dispensed.
+- No statement that the data is synthetic.
+
 ### Untrusted content is fenced, not filtered
 
 The pre-visit chart contains text a *patient* typed, flowing toward a

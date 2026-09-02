@@ -185,11 +185,55 @@ async def _latest_note(
     return (await db.execute(stmt)).scalar_one_or_none()
 
 
+#: The clinical models reach for typographic characters that the PDF's base
+#: fonts cannot draw — SpO₂ with a subscript two, and non-breaking hyphens in
+#: "12‑lead", "D‑dimer", "high‑sensitivity". ReportLab renders each as a black
+#: box, which on a printed chart looks like corrupted data. Map them to plain
+#: equivalents that carry the same meaning.
+_GLYPH_SUBSTITUTIONS = {
+    "\u2080": "0", "\u2081": "1", "\u2082": "2", "\u2083": "3", "\u2084": "4",
+    "\u2085": "5", "\u2086": "6", "\u2087": "7", "\u2088": "8", "\u2089": "9",
+    "\u00b2": "2", "\u00b3": "3", "\u00b9": "1",
+    "\u2011": "-",   # non-breaking hyphen
+    "\u2212": "-",   # minus sign
+    "\u00a0": " ",   # non-breaking space
+    "\u2009": " ", "\u202f": " ",
+    "\u2018": "'", "\u2019": "'", "\u201c": '"', "\u201d": '"',
+    "\u2026": "...",
+    "\u00d7": "x",
+    "\u2264": "<=", "\u2265": ">=",
+    "\u03bc": "u",   # micro
+}
+
+
+def _pdf_safe(s: str) -> str:
+    """Reduce text to characters the PDF's base fonts can actually draw."""
+    for bad, good in _GLYPH_SUBSTITUTIONS.items():
+        s = s.replace(bad, good)
+    # Anything still outside the font's encoding would render as a box; drop to
+    # the closest ASCII rather than showing the reader a black square.
+    import unicodedata
+
+    decomposed = unicodedata.normalize("NFKD", s)
+    return decomposed.encode("cp1252", "ignore").decode("cp1252")
+
+
 def _esc(text: Any) -> str:
     if text is None:
         return ""
-    s = str(text)
+    s = _pdf_safe(str(text))
     return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+#: The queue uses Indonesian department codes internally. A document a patient
+#: may be handed should say what the department is, not what the enum is called.
+POLI_LABELS = {
+    "umum": "General Clinic",
+    "anak": "Pediatrics",
+    "kia": "OB-GYN",
+    "gigi": "Dental",
+    "lansia": "Geriatrics",
+}
 
 
 def _patient_table(ticket: QueueTicket) -> Table:
@@ -200,7 +244,7 @@ def _patient_table(ticket: QueueTicket) -> Table:
             "Age / Sex",
             f"{p.age} y/o · {'Male' if p.sex.value == 'M' else 'Female'}",
             "Department",
-            ticket.poli.value.title(),
+            POLI_LABELS.get(ticket.poli.value, ticket.poli.value.title()),
         ],
         [
             "Identifier",
@@ -250,7 +294,7 @@ def _vitals_block(v: VitalSigns, styles: dict[str, ParagraphStyle]) -> list:
         ],
         [
             "Temp °C", f"{v.temperature_c if v.temperature_c is not None else '—'}",
-            "SpO₂ %", f"{v.spo2 or '—'}",
+            "SpO2 %", f"{v.spo2 or '-'}",
             "Pain", f"{v.pain_score if v.pain_score is not None else '—'}/10",
         ],
     ]
@@ -281,7 +325,7 @@ def _vitals_block(v: VitalSigns, styles: dict[str, ParagraphStyle]) -> list:
         out += [
             Spacer(1, 4),
             Paragraph(
-                "⚠ " + " · ".join(_esc(l) for l in labels),
+                "CRITICAL: " + " · ".join(_esc(l) for l in labels),
                 styles["alert"],
             ),
         ]
@@ -328,7 +372,7 @@ def _summary_block(summary: dict[str, Any], styles: dict[str, ParagraphStyle]) -
                 styles["small"],
             ),
             Paragraph(
-                "Adherence: " + _esc(delta.get("adherence", "—")),
+                "Adherence: " + _esc(delta.get("adherence") or "not recorded"),
                 styles["small"],
             ),
             Paragraph(
@@ -447,7 +491,7 @@ async def build_pdf(ticket_id: uuid.UUID) -> tuple[bytes, str]:
                     rx.dose,
                     rx.frequency,
                     str(rx.duration_days),
-                    "Approved" if rx.approved else "Draft",
+                    "SIGNED" if rx.approved else "UNSIGNED DRAFT",
                 ]
             )
         tbl = Table(
@@ -463,6 +507,18 @@ async def build_pdf(ticket_id: uuid.UUID) -> tuple[bytes, str]:
         tbl.setStyle(
             TableStyle(
                 [
+                    # An unsigned draft on a printed chart is indistinguishable
+                    # from a prescription unless it is marked. Colour the row.
+                    *[
+                        style
+                        for i, rx in enumerate(prescriptions, start=1)
+                        if not rx.approved
+                        for style in (
+                            ("BACKGROUND", (0, i), (-1, i), colors.HexColor("#fffbeb")),
+                            ("TEXTCOLOR", (4, i), (4, i), colors.HexColor("#b45309")),
+                            ("FONTNAME", (4, i), (4, i), "Helvetica-Bold"),
+                        )
+                    ],
                     ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
                     ("FONTSIZE", (0, 0), (-1, -1), 9),
                     ("LEADING", (0, 0), (-1, -1), 12),
@@ -478,6 +534,16 @@ async def build_pdf(ticket_id: uuid.UUID) -> tuple[bytes, str]:
             )
         )
         story.append(tbl)
+        if any(not rx.approved for rx in prescriptions):
+            story.append(Spacer(1, 3))
+            story.append(
+                Paragraph(
+                    "Rows marked UNSIGNED DRAFT have not been prescribed. They are "
+                    "AI-drafted suggestions awaiting a physician's signature and must "
+                    "not be dispensed.",
+                    styles["footer"],
+                )
+            )
         instructions_lines = [rx for rx in prescriptions if rx.instructions]
         for rx in instructions_lines:
             story.append(
@@ -497,7 +563,8 @@ async def build_pdf(ticket_id: uuid.UUID) -> tuple[bytes, str]:
     story.append(
         Paragraph(
             f"Generated by Patiently · prototype · not a substitute for a "
-            f"signed medical record · {settings.CLINIC_NAME}",
+            f"signed medical record · {settings.CLINIC_NAME} · "
+            f"all patient data in this deployment is synthetic",
             styles["footer"],
         )
     )
