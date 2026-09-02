@@ -18,6 +18,11 @@ primary_region = "sin"
   OPENAI_TTS_MODEL = "gpt-4o-mini-tts"
   CLINIC_NAME = "Patiently Demo Clinic"
   PATIENTLY_STATIC_DIR = "/app/static"
+  # Judging runs for weeks against one shared dataset. Restore the clinic
+  # once it has been worked through and left alone, so the fifth judge does
+  # not arrive to an empty waiting room.
+  DEMO_AUTO_RESTORE = "true"
+  DEMO_RESTORE_IDLE_MINUTES = "10"
 
 # Migrations run once per deploy, before the new machines take traffic.
 [deploy]

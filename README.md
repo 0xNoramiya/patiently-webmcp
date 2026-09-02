@@ -53,9 +53,12 @@ agent anything.
 - *"Tell the clinic my chest has hurt since this morning and it spreads to my
   left arm."* — watch triage escalate the ticket from the server side.
 
-> The demo database reseeds to a known state on deploy. If the floor looks
-> picked-over from another visitor, the read tools still work; the queue simply
-> reflects whatever the last person did.
+> **The clinic restores itself.** This is one shared dataset and judging runs
+> for weeks, so every visitor who works through the flow drains the floor. Once
+> there are no active tickets and nothing has been touched for ten minutes, the
+> demo data is put back automatically. It will never fire while you are using
+> it: a single waiting patient counts as active. If you want a clean board
+> immediately, close out the remaining visits and wait for the next tick.
 
 ---
 

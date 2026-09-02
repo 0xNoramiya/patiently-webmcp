@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     RECEPTIONIST_TOKEN: str = "demo-receptionist-token"
     PUBLIC_BASE_URL: str = "http://localhost:3000"
     CLINIC_NAME: str = "Patiently Demo Clinic"
+    #: Restore the demo dataset once the clinic has been idle for a while.
+    #: Only meaningful for the public demo; never enable on real data.
+    DEMO_AUTO_RESTORE: bool = False
+    #: Minutes the clinic must sit untouched before it is restored.
+    DEMO_RESTORE_IDLE_MINUTES: int = 10
     CORS_ORIGINS: str = "http://localhost:3000,http://localhost:8000"
 
     @property

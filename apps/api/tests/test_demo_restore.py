@@ -1,0 +1,77 @@
+"""The demo clinic restores itself between visitors — and never otherwise.
+
+Judging runs for weeks against one shared dataset. Every visitor who works
+through the flow calls patients in and closes visits, so the floor drains and a
+later judge finds an empty waiting room. This puts it back.
+
+The dangerous direction is the other one: this truncates tables, so it must be
+impossible to trigger on a deployment that holds real data, and impossible to
+trigger while somebody is mid-consultation.
+"""
+from __future__ import annotations
+
+import inspect
+
+from app.core.config import Settings
+from app.services import demo_restore
+
+
+def test_disabled_by_default():
+    """A deployment that never opts in must never lose its data.
+
+    Checks the field default rather than a constructed Settings(), which would
+    pick up whatever the local .env says and pass for the wrong reason.
+    """
+    assert Settings.model_fields["DEMO_AUTO_RESTORE"].default is False
+
+
+def test_the_flag_is_checked_before_anything_else_happens():
+    """The opt-in gate must come before any query or write."""
+    src = inspect.getsource(demo_restore.restore_if_idle)
+    gate = src.index("DEMO_AUTO_RESTORE")
+    for later in ("select(", "_reset", "_seed"):
+        assert gate < src.index(later), f"{later} is reachable before the opt-in check"
+
+
+def test_active_tickets_block_a_restore():
+    """Someone mid-consultation must not have the board wiped underneath them."""
+    src = inspect.getsource(demo_restore.restore_if_idle)
+    assert "if active:" in src and "return False" in src
+    # Every non-terminal status counts as active.
+    from app.models.queue_ticket import TicketStatus
+
+    assert set(demo_restore._ACTIVE) == {
+        TicketStatus.waiting,
+        TicketStatus.in_intake,
+        TicketStatus.intake_complete,
+        TicketStatus.in_consultation,
+    }
+    assert TicketStatus.done not in demo_restore._ACTIVE
+    assert TicketStatus.cancelled not in demo_restore._ACTIVE
+
+
+def test_an_idle_period_is_required_on_top_of_emptiness():
+    """Emptiness alone would wipe the board the moment someone closed their last
+    visit, taking the stats they were about to read with it."""
+    src = inspect.getsource(demo_restore.restore_if_idle)
+    assert "DEMO_RESTORE_IDLE_MINUTES" in src
+    assert Settings.model_fields["DEMO_RESTORE_IDLE_MINUTES"].default >= 5
+
+
+def test_it_does_not_dispose_the_running_engine():
+    """seed.main() ends with engine.dispose(), which would tear down the live
+    application's connection pool. The restore must drive _reset/_seed itself."""
+    src = inspect.getsource(demo_restore.restore_if_idle)
+    code = "\n".join(
+        line for line in src.split("\n") if not line.lstrip().startswith("#")
+    )
+    assert "from seed.demo_scenarios import _reset, _seed" in code
+    assert "import main" not in code
+    assert "dispose" not in code, "the restore must not touch the shared engine"
+
+
+def test_a_never_seeded_database_is_seeded_rather_than_skipped():
+    """No tickets at all is 'never seeded', not 'drained' — the first visitor
+    should not find an empty clinic."""
+    src = inspect.getsource(demo_restore.restore_if_idle)
+    assert "last_touch is None" in src or "if last_touch is not None" in src

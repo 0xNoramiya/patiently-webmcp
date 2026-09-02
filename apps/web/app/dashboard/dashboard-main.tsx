@@ -276,7 +276,10 @@ export function DashboardMain({
                 Avg consult {queue?.avg_consultation_minutes ?? '—'} min
               </div>
             </div>
-            <span className="pill-ink text-[11px]">{sortedEntries.length} patients</span>
+            <span className="pill-ink text-[11px]">
+              {sortedEntries.length}{' '}
+              {sortedEntries.length === 1 ? 'patient' : 'patients'}
+            </span>
           </div>
           <div className="max-h-[55%] shrink-0 overflow-y-auto scroll-thin">
             {sortedEntries.length === 0 && (

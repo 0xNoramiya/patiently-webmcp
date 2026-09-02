@@ -8,6 +8,7 @@ import logging
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
+from app.services.demo_restore import restore_if_idle
 from app.services.reminders import fire_due_reminders
 
 logger = logging.getLogger(__name__)
@@ -41,6 +42,14 @@ async def _safe_fire() -> None:
             logger.info("scheduler fired %d reminder(s)", fired)
     except Exception:  # noqa: BLE001
         logger.exception("scheduler tick failed")
+
+    # Independently of reminders: put the demo clinic back if it has been worked
+    # through and left idle. Wrapped separately so a restore failure cannot stop
+    # reminders, and vice versa.
+    try:
+        await restore_if_idle()
+    except Exception:  # noqa: BLE001
+        logger.exception("demo restore check failed")
 
 
 def stop_scheduler() -> None:
