@@ -11,6 +11,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
+from app.core.config import get_settings
 from app.integrations.openai_client import generate_json
 from app.agents.schemas import TRIAGE_RESPONSE_SCHEMA
 
@@ -55,6 +56,7 @@ async def classify_turn(
         system_instruction=TRIAGE_SYSTEM_PROMPT,
         contents=[{"role": "user", "parts": [{"text": user_text}]}],
         response_schema=TRIAGE_RESPONSE_SCHEMA,
+        model=get_settings().OPENAI_MODEL_TRIAGE,
         temperature=0.0,  # deterministic classifier
     )
 

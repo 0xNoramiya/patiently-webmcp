@@ -21,6 +21,7 @@ from app.agents.context import (
     render_patient_block,
     render_previous_visit_block,
 )
+from app.core.config import get_settings
 from app.integrations.openai_client import generate_json
 from app.agents.schemas import SUMMARY_SCHEMA
 from app.models.intake import IntakeMessage, IntakeSession, MessageRole
@@ -97,6 +98,7 @@ async def summarize_session(
         system_instruction=SUMMARIZER_SYSTEM_PROMPT,
         contents=contents,
         response_schema=SUMMARY_SCHEMA,
+        model=get_settings().OPENAI_MODEL_CLINICAL,
         temperature=0.3,
     )
 

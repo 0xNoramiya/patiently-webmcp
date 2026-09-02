@@ -385,7 +385,7 @@ export function useClinicianTools(deps: ClinicianToolDeps) {
     {
       name: 'draft_soap_note',
       description:
-        'Draft a SOAP-format consultation note for a patient from their intake and vitals. Produces an UNSIGNED draft in the clinician\'s note editor for review — it does not enter the record.',
+        'Draft a SOAP-format consultation note for a patient from their pre-visit chart and vitals. Produces an UNSIGNED draft in the clinician\'s note editor for review — it does not enter the record. Requires the pre-visit chart to be written first; it will tell you if it is not ready yet.',
       inputSchema: {
         type: 'object',
         properties: { ticket: TICKET_ARG },
@@ -395,13 +395,41 @@ export function useClinicianTools(deps: ClinicianToolDeps) {
       execute: async ({ ticket }) => {
         const { entry, poli } = await requireTicket(ticket);
         await focus(entry.ticket.id, poli);
+
+        // The note is written FROM the pre-visit chart. The chart is produced by
+        // a background summarizer that lands a few seconds after intake ends, so
+        // an agent that drafts too early gets a note built from vitals alone —
+        // silently missing the patient's own account of why they came in. That
+        // is the most dangerous kind of wrong: confident, well-formed, and
+        // absent the chief complaint. Refuse while it is still coming.
+        let session: IntakeSession | null = null;
+        try {
+          session = await api.getSession(entry.ticket.id);
+        } catch {
+          /* no intake session at all — handled below */
+        }
+
+        if (session && !session.summary) {
+          if (session.status === 'active') {
+            throw new Error(
+              `${entry.ticket.ticket_number} is still in intake. Drafting now would produce a note with no patient-reported history. Wait until intake completes, then try again.`
+            );
+          }
+          throw new Error(
+            `The pre-visit chart for ${entry.ticket.ticket_number} is still being written (this takes a few seconds after intake ends). Drafting now would omit the patient's own account of their symptoms. Try again shortly.`
+          );
+        }
+
         const note = await api.draftNote(entry.ticket.id, pw);
         if (note.status === 'failed') {
           throw new Error(note.error || 'note drafting failed');
         }
         await refreshDetail(entry.ticket.id).catch(() => {});
+        const provenance = session
+          ? ''
+          : `\n⚠ This patient never completed pre-visit intake, so the note is built from vitals and previous-visit records only — it contains no history in the patient's own words.`;
         return [
-          `Unsigned SOAP draft ready for ${entry.ticket.ticket_number} — now on screen for review.`,
+          `Unsigned SOAP draft ready for ${entry.ticket.ticket_number} — now on screen for review.${provenance}`,
           `S: ${note.subjective ?? '—'}`,
           `O: ${note.objective ?? '—'}`,
           `A: ${note.assessment ?? '—'}`,

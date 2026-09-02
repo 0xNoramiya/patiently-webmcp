@@ -2,7 +2,7 @@
 
 Flow:
   1. Build a mock doctor-patient dialogue from a scenario tag (cardiac /
-     follow-up / general). Use EdgeTTS to synthesize MP3 bytes.
+     follow-up / general). Synthesized to MP3 with OpenAI TTS.
   2. Cache the MP3 on disk under STATIC_DIR/audio/{ticket_id}.mp3 so the
      browser can play it back via /api/static/audio/...
   3. Send the MP3 to Speechmatics batch ASR, poll until done, fetch txt.
@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.db import SessionLocal
-from app.integrations import edge_tts as tts
+from app.integrations import openai_tts as tts
 from app.integrations import speechmatics
 from app.models.queue_ticket import QueueTicket
 from app.models.transcript import ConsultationTranscript, TranscriptStatus

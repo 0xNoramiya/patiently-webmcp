@@ -58,7 +58,7 @@ export function TranscriptWidget({
             Consultation transcript
           </h3>
           <div className="text-[11px] text-ink-400 mt-0.5">
-            Mock audio via EdgeTTS · Transcribed by Speechmatics
+            Mock audio via OpenAI TTS · Transcribed by Speechmatics
           </div>
         </div>
         {(!transcript || transcript.status === 'failed') && (

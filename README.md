@@ -311,6 +311,15 @@ Four implementation details worth calling out:
   Schema at call time (`nullable` → type unions, `additionalProperties: false`,
   every key required) so optional fields stay optional in spirit while
   satisfying strict mode, with a `json_object` fallback.
+- **Three models, chosen per job.** Reasoning models reject `temperature` and
+  rename the token cap, so the client shapes each request to the dialect the
+  model speaks and agents keep declaring the temperature they *want*.
+
+  | Role | Model | Why |
+  | --- | --- | --- |
+  | Conversational intake | `gpt-5-mini` | Fluency and warmth matter more than reasoning depth |
+  | Chart, SOAP, prescriptions | `gpt-5` | The reasoning-heavy clinical writing |
+  | Triage classifier | `gpt-4.1-mini` | **Still honours `temperature=0`.** Reasoning models force it to 1, and a red-flag decision that cannot be reproduced cannot be audited |
 
 ---
 
@@ -417,7 +426,8 @@ Browser (ChatGPT in-app / Chrome 149+)
 | Agent interface | WebMCP (`document.modelContext`) |
 | API | FastAPI 0.115, Pydantic v2, SQLAlchemy 2.0 async |
 | Database | PostgreSQL 16 |
-| Models | OpenAI with Structured Outputs |
+| Models | OpenAI — GPT-5 / GPT-5-mini / GPT-4.1-mini, Structured Outputs |
+| Speech | OpenAI TTS (mock consultation audio) · Speechmatics ASR with diarization |
 | Realtime | Server-Sent Events |
 | Hosting | Vercel (web) · Fly.io (API + Postgres, Singapore) |
 

@@ -13,6 +13,7 @@ import logging
 import re
 from typing import Any
 
+from app.core.config import get_settings
 from app.integrations import openai_client
 
 logger = logging.getLogger(__name__)
@@ -118,6 +119,7 @@ async def draft_note(
             {"role": "user", "content": user},
         ],
         max_tokens=600,
+        model=get_settings().OPENAI_MODEL_CLINICAL,
         temperature=0.4,
     )
     parsed = parse_soap(text)

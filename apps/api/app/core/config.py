@@ -9,8 +9,16 @@ class Settings(BaseSettings):
     SYNC_DATABASE_URL: str = "postgresql://patiently:patiently@db:5432/patiently"
     OPENAI_API_KEY: str = ""
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
-    OPENAI_MODEL: str = "gpt-4o-mini"
-    OPENAI_MODEL_CLINICAL: str = "gpt-4o"
+    # Conversational intake — warmth and fluency matter more than reasoning depth.
+    OPENAI_MODEL: str = "gpt-5-mini"
+    # Chart writing, SOAP notes, prescription drafting — the reasoning-heavy work.
+    OPENAI_MODEL_CLINICAL: str = "gpt-5"
+    # The red-flag classifier is a safety component, so it is pinned to a model
+    # that still honours temperature=0. Reasoning models force temperature to 1,
+    # and a triage decision that cannot be reproduced cannot be audited.
+    OPENAI_MODEL_TRIAGE: str = "gpt-4.1-mini"
+    # Mock consultation audio for the transcript demo.
+    OPENAI_TTS_MODEL: str = "gpt-4o-mini-tts"
     SPEECHMATICS_API_KEY: str = ""
     ADMIN_PASSWORD: str = "clinic2026"
     RECEPTIONIST_TOKEN: str = "demo-receptionist-token"

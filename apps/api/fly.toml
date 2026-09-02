@@ -12,8 +12,10 @@ primary_region = "sin"
 
 [env]
   OPENAI_BASE_URL = "https://api.openai.com/v1"
-  OPENAI_MODEL = "gpt-4o-mini"
-  OPENAI_MODEL_CLINICAL = "gpt-4o"
+  OPENAI_MODEL = "gpt-5-mini"
+  OPENAI_MODEL_CLINICAL = "gpt-5"
+  OPENAI_MODEL_TRIAGE = "gpt-4.1-mini"
+  OPENAI_TTS_MODEL = "gpt-4o-mini-tts"
   CLINIC_NAME = "Patiently Demo Clinic"
 
 # Migrations run once per deploy, before the new machines take traffic.

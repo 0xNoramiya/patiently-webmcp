@@ -45,6 +45,43 @@ def _headers() -> dict[str, str]:
     }
 
 
+# Reasoning-family models (gpt-5*, o1/o3/o4*) reject the sampling parameters the
+# older chat models accept: `temperature` must be left at its default, and the
+# token cap is `max_completion_tokens` rather than `max_tokens`. Sending the old
+# names is a hard 400, so the payload is shaped per model rather than per call
+# site — the agents keep declaring the temperature they *want*, and it is
+# honoured wherever the model can honour it.
+_REASONING_PREFIXES = ("gpt-5", "o1", "o3", "o4")
+
+
+def _is_reasoning_model(model: str) -> bool:
+    return model.startswith(_REASONING_PREFIXES)
+
+
+def _apply_sampling(
+    payload: dict[str, Any],
+    model: str,
+    *,
+    temperature: float | None = None,
+    max_tokens: int | None = None,
+) -> dict[str, Any]:
+    """Attach sampling parameters in the dialect this model speaks."""
+    reasoning = _is_reasoning_model(model)
+
+    if temperature is not None and not reasoning:
+        payload["temperature"] = temperature
+
+    if max_tokens is not None:
+        # Reasoning models spend tokens on internal reasoning before emitting
+        # any content, so a cap sized for a plain completion can return an
+        # empty string. Give them substantially more headroom.
+        payload["max_completion_tokens" if reasoning else "max_tokens"] = (
+            max(max_tokens * 8, 2000) if reasoning else max_tokens
+        )
+
+    return payload
+
+
 def _parse_retry_delay(err_msg: str) -> float | None:
     """Pull 'Please try again in 21.4s' out of a rate-limit error body."""
     m = re.search(r"try again in (\d+(?:\.\d+)?)s", err_msg)
@@ -142,19 +179,23 @@ async def generate_json(
         logger.warning("OPENAI_API_KEY not set — using stub responses")
         return _stub_response(response_schema)
 
-    payload = {
-        "model": model or settings.OPENAI_MODEL,
-        "messages": _to_messages(system_instruction, contents),
-        "temperature": temperature,
-        "response_format": {
-            "type": "json_schema",
-            "json_schema": {
-                "name": schema_name,
-                "strict": True,
-                "schema": _strictify(response_schema),
+    chosen = model or settings.OPENAI_MODEL
+    payload = _apply_sampling(
+        {
+            "model": chosen,
+            "messages": _to_messages(system_instruction, contents),
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": schema_name,
+                    "strict": True,
+                    "schema": _strictify(response_schema),
+                },
             },
         },
-    }
+        chosen,
+        temperature=temperature,
+    )
 
     last_error: Exception | None = None
     for attempt in range(MAX_RETRIES):
@@ -198,12 +239,13 @@ async def chat(
     if not settings.OPENAI_API_KEY:
         raise OpenAIError("OPENAI_API_KEY not configured")
 
-    payload: dict[str, Any] = {
-        "model": model or settings.OPENAI_MODEL,
-        "messages": messages,
-        "max_tokens": max_tokens,
-        "temperature": temperature,
-    }
+    chosen = model or settings.OPENAI_MODEL
+    payload: dict[str, Any] = _apply_sampling(
+        {"model": chosen, "messages": messages},
+        chosen,
+        temperature=temperature,
+        max_tokens=max_tokens,
+    )
 
     last_error: Exception | None = None
     for attempt in range(MAX_RETRIES):

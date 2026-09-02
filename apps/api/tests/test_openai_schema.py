@@ -206,3 +206,53 @@ def test_triage_stub_raises_no_flags():
     """Failing open on triage would be a clinical safety bug in the other direction:
     the stub must never invent a red flag."""
     assert _stub_response(TRIAGE_RESPONSE_SCHEMA)["triage_flags"] == []
+
+
+# --- model dialects --------------------------------------------------------
+
+from app.integrations.openai_client import _apply_sampling, _is_reasoning_model
+
+
+@pytest.mark.parametrize(
+    "model,expected",
+    [
+        ("gpt-5", True), ("gpt-5-mini", True), ("gpt-5-nano", True),
+        ("o1-preview", True), ("o3-mini", True), ("o4-mini", True),
+        ("gpt-4o", False), ("gpt-4o-mini", False), ("gpt-4.1-mini", False),
+    ],
+)
+def test_reasoning_models_are_recognised(model, expected):
+    assert _is_reasoning_model(model) is expected
+
+
+def test_reasoning_models_reject_temperature_so_we_omit_it():
+    """gpt-5 400s on any temperature but the default. Sending it is a hard fail,
+    not a degraded response, so it must never reach the wire."""
+    out = _apply_sampling({"model": "gpt-5"}, "gpt-5", temperature=0.0)
+    assert "temperature" not in out
+
+
+def test_chat_models_keep_their_declared_temperature():
+    out = _apply_sampling({"model": "gpt-4o-mini"}, "gpt-4o-mini", temperature=0.0)
+    assert out["temperature"] == 0.0
+
+
+def test_token_cap_uses_the_right_parameter_name_per_model():
+    reasoning = _apply_sampling({"model": "gpt-5"}, "gpt-5", max_tokens=220)
+    assert "max_tokens" not in reasoning
+    assert "max_completion_tokens" in reasoning
+
+    chat = _apply_sampling({"model": "gpt-4o"}, "gpt-4o", max_tokens=220)
+    assert chat["max_tokens"] == 220
+    assert "max_completion_tokens" not in chat
+
+
+def test_reasoning_models_get_headroom_above_the_declared_cap():
+    """Reasoning tokens are spent before any content is emitted, so a cap sized
+    for a plain completion can come back empty."""
+    out = _apply_sampling({"model": "gpt-5"}, "gpt-5", max_tokens=220)
+    assert out["max_completion_tokens"] >= 2000
+
+
+def test_sampling_is_a_no_op_when_nothing_is_declared():
+    assert _apply_sampling({"model": "gpt-5"}, "gpt-5") == {"model": "gpt-5"}
