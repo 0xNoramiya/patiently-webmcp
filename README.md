@@ -8,7 +8,7 @@
 [![Live demo](https://img.shields.io/badge/Live%20demo-patiently--webmcp.vercel.app-0e8265)](https://patiently-webmcp.vercel.app)
 [![WebMCP Challenge](https://img.shields.io/badge/OpenAI-WebMCP%20Challenge%202026-10b981)](https://webmcp.devpost.com)
 [![Tools](https://img.shields.io/badge/WebMCP%20tools-20-0e8265)](#the-tool-surface)
-[![Evals](https://img.shields.io/badge/evals-78%20%2B%2032%20passing-10b981)](#evals)
+[![Evals](https://img.shields.io/badge/evals-87%20%2B%2032%20passing-10b981)](#evals)
 [![License](https://img.shields.io/badge/License-MIT-cbd5e1)](LICENSE)
 
 ---
@@ -231,6 +231,27 @@ annotations:
 Drafting is free because a draft is reversible and labelled. Committing is
 gated because it changes someone's care.
 
+### Proposals queue, and a non-answer is never reported as a refusal
+
+Two commit tools can be in flight at once. They queue: each gets its own dialog
+and its own human decision, and the dialog says how many are waiting behind the
+one on screen.
+
+The outcome an agent receives is one of four things, not a boolean — because
+three of them are not a decision anybody made:
+
+| Outcome | What the agent is told |
+| --- | --- |
+| `approved` | The write happened. |
+| `declined` | *"The clinician declined — …"* |
+| `expired` | *"No answer within three minutes… Nobody rejected it; ask them to look again."* |
+| `cancelled` | *"The request was withdrawn before the clinician answered… They never saw it."* |
+
+This started as a real bug: a second proposal arriving while one was on screen
+resolved the first as declined, so an agent could tell a doctor they had refused
+something they were never shown. Attributing a clinical judgement to a person
+who never made one is worse than having no answer at all.
+
 ### Untrusted content is fenced, not filtered
 
 The pre-visit chart contains text a *patient* typed, flowing toward a
@@ -425,7 +446,7 @@ proves it. `apps/web/evals/` runs the **real app in a real browser** against a
 stubbed `document.modelContext`, and calls every tool the way an agent would.
 
 ```bash
-cd apps/web && npm run eval        # 66 assertions, no model calls
+cd apps/web && npm run eval        # 87 assertions, no model calls
 cd apps/web && npm run eval:live   # 32 assertions, full workflow on real models
 ```
 

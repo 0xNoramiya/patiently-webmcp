@@ -270,6 +270,64 @@ async function main() {
   check('approving performs the write', /called in/.test(approved || ''), approved?.slice(0, 120));
 
   // -----------------------------------------------------------------------
+  section('Clinician surface — concurrent proposals queue');
+  // A second commit tool arriving while one is on screen used to silently
+  // resolve the first as "declined", so an agent could be told the clinician
+  // refused something they never saw. Proposals must queue instead.
+  const twoTickets = await page.evaluate(async () => {
+    const q = await (await fetch('/api/queue/umum')).json();
+    return [...q.waiting, ...q.intake_complete].slice(0, 2).map((e) => e.ticket.ticket_number);
+  });
+  check('found two tickets to work with', twoTickets.length === 2, twoTickets.join(', '));
+
+  if (twoTickets.length === 2) {
+    await page.evaluate(async ([t]) => {
+      window.__c1 = { done: false, out: null };
+      const tool = (await document.modelContext.getTools()).find((x) => x.name === 'record_vitals');
+      window.__c1p = document.modelContext
+        .executeTool(tool, JSON.stringify({ ticket: t, systolic_bp: 128, heart_rate: 72 }))
+        .then((r) => { const j = typeof r === 'string' ? JSON.parse(r) : r;
+          window.__c1 = { done: true, out: (j?.content ?? []).map((c) => c.text).join('\n') }; })
+        .catch((e) => { window.__c1 = { done: true, out: 'ERROR: ' + e.message }; });
+    }, [twoTickets[0]]);
+    await page.waitForSelector('[role="dialog"]', { timeout: 20000 });
+
+    await page.evaluate(async ([t]) => {
+      window.__c2 = { done: false, out: null };
+      const tool = (await document.modelContext.getTools()).find((x) => x.name === 'call_next_patient');
+      window.__c2p = document.modelContext
+        .executeTool(tool, JSON.stringify({ ticket: t }))
+        .then((r) => { const j = typeof r === 'string' ? JSON.parse(r) : r;
+          window.__c2 = { done: true, out: (j?.content ?? []).map((c) => c.text).join('\n') }; })
+        .catch((e) => { window.__c2 = { done: true, out: 'ERROR: ' + e.message }; });
+    }, [twoTickets[1]]);
+    await page.waitForTimeout(2000);
+
+    const both = await page.evaluate(() => ({ a: window.__c1, b: window.__c2 }));
+    check('a second proposal does not resolve the first', !both.a.done, JSON.stringify(both.a));
+    check('the second proposal is queued, not shown', !both.b.done, JSON.stringify(both.b));
+
+    const dlg = await dialog(page).innerText();
+    check('the dialog still shows the FIRST proposal', /Record vitals/.test(dlg), dlg.split('\n').slice(0,3).join(' | '));
+    check('the human is told how many are queued behind', /1 more request behind this/.test(dlg), dlg.split('\n').slice(0,3).join(' | '));
+
+    await dialog(page).getByRole('button', { name: 'Record vitals' }).click();
+    await page.evaluate(() => window.__c1p);
+    const first = await page.evaluate(() => window.__c1.out);
+    check('answering resolves the first honestly', /Recorded for/.test(first || ''), first);
+
+    // The queued one now surfaces and gets its own decision.
+    await page.waitForSelector('[role="dialog"]', { timeout: 20000 });
+    const dlg2 = await dialog(page).innerText();
+    check('the queued proposal then appears', /Call [A-E]-\d{3} in/.test(dlg2), dlg2.split('\n').slice(0,3).join(' | '));
+    await dialog(page).getByRole('button', { name: 'Decline' }).click();
+    await page.evaluate(() => window.__c2p);
+    const second = await page.evaluate(() => window.__c2.out);
+    check('an actual decline is reported as a decline', /declined/i.test(second || ''), second);
+    check('a decline is attributed to the clinician, not invented', /The clinician declined/.test(second || ''), second);
+  }
+
+  // -----------------------------------------------------------------------
   section('Clinician surface — vitals with critical flagging');
   await callToolDeferred(page, 'record_vitals', {
     ticket: ticketNum, systolic_bp: 210, diastolic_bp: 125, heart_rate: 122, spo2: 88,

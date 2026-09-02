@@ -73,7 +73,7 @@ export function AgentStatusPill({ className }: { className?: string }) {
 }
 
 export function AgentApprovalDialog() {
-  const { pending, resolvePending } = useAgentSession();
+  const { pending, queuedBehind, resolvePending } = useAgentSession();
   const confirmRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -122,6 +122,11 @@ export function AgentApprovalDialog() {
             />
           </span>
           Agent is waiting for you
+          {queuedBehind > 0 && (
+            <span className="ml-auto font-medium normal-case tracking-normal opacity-80">
+              {queuedBehind} more {queuedBehind === 1 ? 'request' : 'requests'} behind this
+            </span>
+          )}
         </div>
 
         <div className="p-5">
@@ -170,6 +175,7 @@ export function AgentApprovalDialog() {
           <p className="mt-3 text-[11px] leading-snug text-ink-400">
             The agent cannot complete this step on its own. Nothing is written
             unless you confirm.
+            {queuedBehind > 0 && ' The next request appears once you answer this one.'}
           </p>
         </div>
       </div>

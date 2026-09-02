@@ -37,6 +37,16 @@ export interface AgentEvent {
   at: number;
 }
 
+/**
+ * How an approval ended.
+ *
+ * This is not a boolean because three of the four outcomes are not a human
+ * decision, and reporting them as one would put words in the clinician's
+ * mouth — an agent telling a doctor "you declined recording those vitals" when
+ * no dialog was ever answered is worse than no answer at all.
+ */
+export type ApprovalOutcome = 'approved' | 'declined' | 'expired' | 'cancelled';
+
 export interface ApprovalRequest {
   id: string;
   /** e.g. "Sign 2 prescriptions" */
@@ -60,17 +70,27 @@ interface AgentSessionValue {
   beginCall: (tool: string, label: string) => string;
   endCall: (id: string, status: AgentEventStatus, detail?: string) => void;
 
+  /** The proposal currently on screen. */
   pending: ApprovalRequest | null;
+  /** How many further proposals are queued behind it. */
+  queuedBehind: number;
   requestApproval: (
     req: Omit<ApprovalRequest, 'id'>,
     signal?: AbortSignal
-  ) => Promise<boolean>;
+  ) => Promise<ApprovalOutcome>;
   resolvePending: (approved: boolean) => void;
+}
+
+interface QueuedApproval {
+  request: ApprovalRequest;
+  resolve: (outcome: ApprovalOutcome) => void;
+  /** Set when the proposal reaches the front and becomes visible. */
+  timer: ReturnType<typeof setTimeout> | undefined;
 }
 
 const AgentSessionContext = createContext<AgentSessionValue | null>(null);
 
-/** Approval requests expire so a forgotten dialog can't wedge the agent. */
+/** A visible proposal expires so a forgotten dialog can't wedge the agent. */
 const APPROVAL_TIMEOUT_MS = 180_000;
 
 let seq = 0;
@@ -81,8 +101,46 @@ export function AgentSessionProvider({ children }: { children: ReactNode }) {
   const [toolCount, setToolCount] = useState(0);
   const [events, setEvents] = useState<AgentEvent[]>([]);
   const [pending, setPending] = useState<ApprovalRequest | null>(null);
+  const [queuedBehind, setQueuedBehind] = useState(0);
 
-  const resolverRef = useRef<((approved: boolean) => void) | null>(null);
+  /**
+   * Proposals waiting on a human, oldest first.
+   *
+   * This used to be a single slot, and a second proposal arriving while one was
+   * on screen silently resolved the first as "declined" — so an agent could be
+   * told the clinician refused something the clinician never saw. They queue
+   * now: every proposal an agent makes gets a real human decision, or is
+   * honestly reported as never having received one.
+   */
+  const queueRef = useRef<QueuedApproval[]>([]);
+
+  const sync = useCallback(() => {
+    const head = queueRef.current[0] ?? null;
+    setPending(head ? head.request : null);
+    setQueuedBehind(Math.max(0, queueRef.current.length - 1));
+
+    // The clock only starts once a proposal is actually in front of someone.
+    if (head && head.timer === undefined) {
+      head.timer = setTimeout(() => settleRef.current(head, 'expired'), APPROVAL_TIMEOUT_MS);
+    }
+  }, []);
+
+  const settle = useCallback(
+    (entry: QueuedApproval, outcome: ApprovalOutcome) => {
+      const index = queueRef.current.indexOf(entry);
+      if (index === -1) return;
+      queueRef.current.splice(index, 1);
+      if (entry.timer !== undefined) clearTimeout(entry.timer);
+      entry.resolve(outcome);
+      sync();
+    },
+    [sync]
+  );
+
+  // `sync` schedules a timeout that calls `settle`, and `settle` calls `sync`.
+  // A ref breaks the cycle without making either depend on the other.
+  const settleRef = useRef(settle);
+  settleRef.current = settle;
 
   const beginCall = useCallback((tool: string, label: string) => {
     const id = nextId();
@@ -102,55 +160,38 @@ export function AgentSessionProvider({ children }: { children: ReactNode }) {
     []
   );
 
-  const settle = useCallback((approved: boolean) => {
-    const resolve = resolverRef.current;
-    resolverRef.current = null;
-    setPending(null);
-    resolve?.(approved);
-  }, []);
-
   const requestApproval = useCallback(
     (req: Omit<ApprovalRequest, 'id'>, signal?: AbortSignal) =>
-      new Promise<boolean>((resolve) => {
-        // Only one decision is on screen at a time; a new request supersedes
-        // an unanswered one, which is declined rather than left dangling.
-        resolverRef.current?.(false);
-
+      new Promise<ApprovalOutcome>((resolve) => {
         if (signal?.aborted) {
-          resolve(false);
+          resolve('cancelled');
           return;
         }
 
-        const id = nextId();
-        let done = false;
-        const finish = (approved: boolean) => {
-          if (done) return;
-          done = true;
-          clearTimeout(timer);
-          resolve(approved);
+        const entry: QueuedApproval = {
+          request: { ...req, id: nextId() },
+          resolve,
+          timer: undefined,
         };
-
-        resolverRef.current = finish;
-        setPending({ ...req, id });
-
-        const timer = setTimeout(() => {
-          if (done) return;
-          resolverRef.current = null;
-          setPending(null);
-          finish(false);
-        }, APPROVAL_TIMEOUT_MS);
+        queueRef.current.push(entry);
 
         signal?.addEventListener(
           'abort',
-          () => {
-            if (done) return;
-            resolverRef.current = null;
-            setPending(null);
-            finish(false);
-          },
+          () => settleRef.current(entry, 'cancelled'),
           { once: true }
         );
+
+        sync();
       }),
+    [sync]
+  );
+
+  /** Answer whatever is on screen. */
+  const resolvePending = useCallback(
+    (approved: boolean) => {
+      const head = queueRef.current[0];
+      if (head) settleRef.current(head, approved ? 'approved' : 'declined');
+    },
     []
   );
 
@@ -164,10 +205,14 @@ export function AgentSessionProvider({ children }: { children: ReactNode }) {
       beginCall,
       endCall,
       pending,
+      queuedBehind,
       requestApproval,
-      resolvePending: settle,
+      resolvePending,
     }),
-    [supported, toolCount, events, beginCall, endCall, pending, requestApproval, settle]
+    [
+      supported, toolCount, events, beginCall, endCall,
+      pending, queuedBehind, requestApproval, resolvePending,
+    ]
   );
 
   return (
@@ -183,4 +228,26 @@ export function useAgentSession(): AgentSessionValue {
     throw new Error('useAgentSession must be used inside <AgentSessionProvider>');
   }
   return ctx;
+}
+
+/**
+ * Turn a non-approval into an honest sentence for the agent.
+ *
+ * Only `declined` is a decision someone made. Saying "the clinician declined"
+ * when a proposal expired unseen, or was cancelled before it reached the front
+ * of the queue, attributes a clinical judgement to a person who never made one.
+ */
+export function describeNonApproval(
+  outcome: Exclude<ApprovalOutcome, 'approved'>,
+  consequence: string,
+  who: 'clinician' | 'patient' = 'clinician'
+): string {
+  switch (outcome) {
+    case 'declined':
+      return `The ${who} declined — ${consequence}`;
+    case 'expired':
+      return `No answer from the ${who} within three minutes, so this was not confirmed — ${consequence} Nobody rejected it; ask them to look again.`;
+    case 'cancelled':
+      return `The request was withdrawn before the ${who} answered — ${consequence} They never saw it.`;
+  }
 }

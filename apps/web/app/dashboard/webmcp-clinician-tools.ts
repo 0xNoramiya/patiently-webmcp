@@ -32,7 +32,10 @@ import {
   type QueueState,
   type TicketDetail,
 } from '@/lib/types';
-import { useAgentSession } from '@/lib/webmcp/agent-session';
+import {
+  describeNonApproval,
+  useAgentSession,
+} from '@/lib/webmcp/agent-session';
 import { wrapUntrusted } from '@/lib/webmcp/runtime';
 import { useWebMCPTools, type AppToolDefinition } from '@/lib/webmcp/use-webmcp-tool';
 
@@ -525,7 +528,7 @@ export function useClinicianTools(deps: ClinicianToolDeps) {
         if (!measured.length) throw new Error('No vital signs given.');
 
         const lines = measured.map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`);
-        const ok = await requestApproval(
+        const outcome = await requestApproval(
           {
             title: `Record vitals for ${entry.ticket.ticket_number}`,
             summary: `${entry.patient.name} — agent proposes writing these to the chart.`,
@@ -534,7 +537,12 @@ export function useClinicianTools(deps: ClinicianToolDeps) {
           },
           signal
         );
-        if (!ok) return `Clinician declined — nothing was recorded for ${entry.ticket.ticket_number}.`;
+        if (outcome !== 'approved') {
+          return describeNonApproval(
+            outcome,
+            `nothing was recorded for ${entry.ticket.ticket_number}.`
+          );
+        }
 
         const saved = await api.recordVitals(
           entry.ticket.id,
@@ -600,7 +608,7 @@ export function useClinicianTools(deps: ClinicianToolDeps) {
           /* interaction screen is advisory */
         }
 
-        const ok = await requestApproval(
+        const outcome = await requestApproval(
           {
             title: `Sign ${target.drug_name} for ${entry.ticket.ticket_number}`,
             summary: `${entry.patient.name} — ${target.dose} ${target.frequency} × ${target.duration_days} days.`,
@@ -614,8 +622,11 @@ export function useClinicianTools(deps: ClinicianToolDeps) {
           },
           signal
         );
-        if (!ok) {
-          return `Clinician declined to sign ${target.drug_name} for ${entry.ticket.ticket_number}. It remains an unsigned draft.`;
+        if (outcome !== 'approved') {
+          return describeNonApproval(
+            outcome,
+            `${target.drug_name} for ${entry.ticket.ticket_number} remains an unsigned draft.`
+          );
         }
 
         await api.approvePrescription(target.id, true, pw);
@@ -660,7 +671,7 @@ export function useClinicianTools(deps: ClinicianToolDeps) {
           ? `⚠ ${flagLabels(target.entry.triage_flags)}`
           : '';
 
-        const ok = await requestApproval(
+        const outcome = await requestApproval(
           {
             title: `Call ${target.entry.ticket.ticket_number} in`,
             summary: `${target.entry.patient.name} (${target.entry.patient.age}${target.entry.patient.sex}) — ${POLI_LABEL[target.poli]}, position ${target.entry.position}.`,
@@ -669,7 +680,12 @@ export function useClinicianTools(deps: ClinicianToolDeps) {
           },
           signal
         );
-        if (!ok) return `Clinician declined — ${target.entry.ticket.ticket_number} was not called.`;
+        if (outcome !== 'approved') {
+          return describeNonApproval(
+            outcome,
+            `${target.entry.ticket.ticket_number} was not called.`
+          );
+        }
 
         await api.callNext(target.entry.ticket.id, pw);
         await live.current.refreshQueue().catch(() => {});
@@ -692,7 +708,7 @@ export function useClinicianTools(deps: ClinicianToolDeps) {
         const { entry, poli } = await requireTicket(ticket);
         await focus(entry.ticket.id, poli);
 
-        const ok = await requestApproval(
+        const outcome = await requestApproval(
           {
             title: `Close consultation ${entry.ticket.ticket_number}`,
             summary: `${entry.patient.name} — marks the visit done and frees the room.`,
@@ -700,7 +716,12 @@ export function useClinicianTools(deps: ClinicianToolDeps) {
           },
           signal
         );
-        if (!ok) return `Clinician declined — ${entry.ticket.ticket_number} is still open.`;
+        if (outcome !== 'approved') {
+          return describeNonApproval(
+            outcome,
+            `${entry.ticket.ticket_number} is still open.`
+          );
+        }
 
         await api.completeTicket(entry.ticket.id, pw);
         await live.current.refreshQueue().catch(() => {});

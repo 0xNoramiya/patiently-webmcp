@@ -26,7 +26,10 @@ import {
   type IntakeSession,
   type TicketDetail,
 } from '@/lib/types';
-import { useAgentSession } from '@/lib/webmcp/agent-session';
+import {
+  describeNonApproval,
+  useAgentSession,
+} from '@/lib/webmcp/agent-session';
 import { useWebMCPTools, type AppToolDefinition } from '@/lib/webmcp/use-webmcp-tool';
 
 /** Tells any mounted intake chat to re-read the session immediately. */
@@ -259,7 +262,7 @@ export function PatientAgentTools({ ticketId }: { ticketId: string }) {
         const captured = describeCaptured(
           (session.structured_data ?? {}) as Record<string, unknown>
         );
-        const ok = await requestApproval(
+        const outcome = await requestApproval(
           {
             title: 'Send your intake to the doctor?',
             summary:
@@ -269,7 +272,9 @@ export function PatientAgentTools({ ticketId }: { ticketId: string }) {
           },
           signal
         );
-        if (!ok) return 'The patient declined — nothing was sent.';
+        if (outcome !== 'approved') {
+          return describeNonApproval(outcome, 'nothing was sent.', 'patient');
+        }
 
         const done = await api.completeIntake(ticketId);
         announceIntakeUpdate();
