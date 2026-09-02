@@ -16,7 +16,13 @@ const nextConfig = {
       process.env.NEXT_PUBLIC_API_URL ||
       'http://localhost:8000'
     ).replace(/\/$/, '');
-    return [{ source: '/api/:path*', destination: `${apiTarget}/api/:path*` }];
+    return [
+      { source: '/api/:path*', destination: `${apiTarget}/api/:path*` },
+      // Next treats a leading-dot path segment as hidden, so the manifest is
+      // implemented at a normal route and surfaced at the well-known location.
+      { source: '/.well-known/webmcp', destination: '/webmcp-manifest' },
+      { source: '/.well-known/webmcp.json', destination: '/webmcp-manifest' },
+    ];
   },
 };
 module.exports = nextConfig;

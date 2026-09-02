@@ -175,6 +175,47 @@ agent — can describe symptoms honestly, but cannot talk itself up the queue.
 
 ---
 
+## Discovery — being findable before the page loads
+
+WebMCP's own discovery is runtime: tools exist on `document.modelContext` once a
+page has loaded. That is fine for an agent already on the site and useless for
+one deciding whether to visit. So the site also publishes what it can do:
+
+| Endpoint | What it is |
+| --- | --- |
+| [`/llms.txt`](https://patiently-webmcp.vercel.app/llms.txt) | Plain-text brief: what the clinic does, the trust tiers, every tool, and the two safety properties |
+| [`/.well-known/webmcp`](https://patiently-webmcp.vercel.app/.well-known/webmcp) | JSON manifest of all 19 tools by surface, with tier and `requiresHumanConfirmation` |
+| [`/robots.txt`](https://patiently-webmcp.vercel.app/robots.txt) | Explicitly allows agent crawlers; keeps every crawler out of `/p/` patient pages |
+| [`/sitemap.xml`](https://patiently-webmcp.vercel.app/sitemap.xml) | Public routes only |
+| Schema.org JSON-LD | `WebSite`, `SoftwareApplication`, `FAQPage` — typed as software, not `MedicalClinic`, because this is a demo and claiming otherwise would be a lie told to machines |
+| Open Graph + Twitter | Generated at build time with `next/og` |
+
+**On `/.well-known/webmcp`:** the WebMCP draft does *not* define a well-known
+manifest. It has been discussed by the Chrome team and it is what the
+ecosystem's readiness auditors look for, so it is served here as a convention.
+The registered tools remain the source of truth — and the eval suite asserts the
+manifest matches them exactly, so the two cannot drift.
+
+### Running in a browser without native WebMCP
+
+Native `document.modelContext` only exists in Chrome 149+ behind a flag and in
+ChatGPT's in-app browser. Anywhere else — including plain Chrome running the
+WebMCP Inspector extension — there is no implementation at all, and a page that
+only *consumes* the API registers nothing.
+
+So the site brings its own runtime. It installs
+[`@mcp-b/webmcp-polyfill`](https://www.npmjs.com/package/@mcp-b/webmcp-polyfill)
+when, and only when, no native implementation is present; the polyfill defers to
+the browser's own where one exists. The install happens at module scope rather
+than in an effect, because React flushes child effects before parent ones — a
+provider installing the runtime in its own effect would do it *after* the
+components registering tools had already given up.
+
+The upshot: `document.modelContext.getTools()` returns tools in any modern
+browser, with no flags.
+
+---
+
 ## The trust model
 
 Every tool sits in exactly one of three tiers, and the tier is visible in its

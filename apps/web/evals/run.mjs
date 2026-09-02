@@ -23,6 +23,18 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const BASE = process.argv[2] || process.env.EVAL_BASE_URL || 'http://localhost:3000';
 const STUB = readFileSync(join(__dirname, 'webmcp-stub.js'), 'utf8');
 
+const EXPECTED_CLINICIAN = [
+  'call_next_patient', 'check_drug_interactions', 'complete_consultation',
+  'draft_prescriptions', 'draft_soap_note', 'get_clinic_floor_stats',
+  'get_previsit_chart', 'get_vitals', 'list_patient_queue', 'record_vitals',
+  'sign_prescription',
+];
+
+const EXPECTED_PATIENT = [
+  'describe_symptoms', 'finish_intake', 'get_caregiver_share_link',
+  'get_intake_progress', 'get_queue_status', 'set_intake_language',
+];
+
 let passed = 0;
 let failed = 0;
 const failures = [];
@@ -151,12 +163,6 @@ async function main() {
   await page.goto(`${BASE}/dashboard`, { waitUntil: 'domcontentloaded' });
   await waitForTools(page, 10);
 
-  const EXPECTED_CLINICIAN = [
-    'call_next_patient', 'check_drug_interactions', 'complete_consultation',
-    'draft_prescriptions', 'draft_soap_note', 'get_clinic_floor_stats',
-    'get_previsit_chart', 'get_vitals', 'list_patient_queue', 'record_vitals',
-    'sign_prescription',
-  ];
   const clinicianTools = await listTools(page);
   const names = clinicianTools.map((t) => t.name).sort();
   check(
@@ -283,7 +289,12 @@ async function main() {
   await page.goto(`${BASE}/p/${ticketId}`, { waitUntil: 'domcontentloaded' });
   await waitForTools(page, 6);
   const patientTools = await listTools(page);
-  check(`registers 6 patient tools (got ${patientTools.length})`, patientTools.length === 6, patientTools.map((t) => t.name).join(', '));
+  const patientNames = patientTools.map((t) => t.name).sort();
+  check(
+    `registers all ${EXPECTED_PATIENT.length} patient tools (got ${patientTools.length})`,
+    JSON.stringify(patientNames) === JSON.stringify(EXPECTED_PATIENT),
+    patientNames.join(', ')
+  );
 
   const pByName = Object.fromEntries(patientTools.map((t) => [t.name, t]));
   check('patient cannot escalate their own priority',
@@ -319,6 +330,90 @@ async function main() {
     const r = await settleDeferred(page);
     check('finish_intake without a session errors clearly', /not started|already sent/i.test(r || ''), r?.slice(0, 120));
   }
+
+  // -----------------------------------------------------------------------
+  section('Discovery surface');
+  // The manifest and llms.txt are served from a hand-written catalogue, so the
+  // only thing keeping them honest is this: what the site *claims* to expose
+  // must equal what it actually registers.
+  const manifest = await page.evaluate(async () => {
+    const r = await fetch('/.well-known/webmcp');
+    return r.ok ? r.json() : { error: `HTTP ${r.status}` };
+  });
+  check('/.well-known/webmcp is served as JSON', !manifest.error, manifest.error);
+  check(
+    'manifest declares document.modelContext',
+    manifest?.runtime?.api === 'document.modelContext',
+    JSON.stringify(manifest?.runtime)?.slice(0, 100)
+  );
+
+  const bySurface = Object.fromEntries(
+    (manifest.surfaces || []).map((s) => [s.path, s.tools.map((t) => t.name).sort()])
+  );
+  check(
+    'manifest matches the tools registered on the front door',
+    JSON.stringify(bySurface['/']) === JSON.stringify(['list_demo_surfaces', 'open_demo']),
+    JSON.stringify(bySurface['/'])
+  );
+  check(
+    'manifest matches the tools registered on the dashboard',
+    JSON.stringify(bySurface['/dashboard']) === JSON.stringify(EXPECTED_CLINICIAN),
+    JSON.stringify(bySurface['/dashboard'])
+  );
+  check(
+    'manifest matches the tools registered on a patient page',
+    JSON.stringify(bySurface['/p/{ticket}']) === JSON.stringify(EXPECTED_PATIENT),
+    JSON.stringify(bySurface['/p/{ticket}'])
+  );
+  check(
+    'manifest tool_count equals the sum of its surfaces',
+    manifest.tool_count === Object.values(bySurface).flat().length,
+    `${manifest.tool_count} vs ${Object.values(bySurface).flat().length}`
+  );
+  check(
+    'every commit-tier tool is marked as requiring human confirmation',
+    (manifest.surfaces || [])
+      .flatMap((s) => s.tools)
+      .every((t) => (t.tier === 'commit') === (t.requiresHumanConfirmation === true)),
+    'tier and requiresHumanConfirmation disagree'
+  );
+
+  const llms = await page.evaluate(async () => {
+    const r = await fetch('/llms.txt');
+    return r.ok ? r.text() : `HTTP ${r.status}`;
+  });
+  check('/llms.txt is served', llms.startsWith('# Patiently'), llms.slice(0, 80));
+  check(
+    '/llms.txt documents every registered tool',
+    EXPECTED_CLINICIAN.concat(EXPECTED_PATIENT).every((n) => llms.includes(n)),
+    'a registered tool is missing from llms.txt'
+  );
+  check(
+    '/llms.txt states the no-self-escalation property',
+    /cannot talk its way up the queue/i.test(llms)
+  );
+
+  const robots = await page.evaluate(async () => (await fetch('/robots.txt')).text());
+  check('robots.txt allows GPTBot', /User-Agent: GPTBot/i.test(robots), robots.slice(0, 80));
+  check('robots.txt keeps crawlers out of patient pages', /Disallow: \/p\//.test(robots));
+
+  const head = await page.evaluate(() => ({
+    canonical: document.querySelector('link[rel="canonical"]')?.getAttribute('href'),
+    og: document.querySelector('meta[property="og:title"]')?.getAttribute('content'),
+    ogImage: document.querySelector('meta[property="og:image"]')?.getAttribute('content'),
+    twitter: document.querySelector('meta[name="twitter:card"]')?.getAttribute('content'),
+    jsonld: [...document.querySelectorAll('script[type="application/ld+json"]')].map((n) => n.textContent),
+    manifestLink: document.querySelector('link[href="/.well-known/webmcp"]')?.getAttribute('type'),
+  }));
+  check('canonical URL is present', !!head.canonical, String(head.canonical));
+  check('Open Graph title is present', !!head.og, String(head.og));
+  check('Open Graph image is present', !!head.ogImage, String(head.ogImage));
+  check('Twitter card is present', head.twitter === 'summary_large_image', String(head.twitter));
+  check('JSON-LD is present and parses', (() => {
+    try { return head.jsonld.length > 0 && !!JSON.parse(head.jsonld[0])['@graph']; }
+    catch { return false; }
+  })(), 'JSON-LD missing or malformed');
+  check('the manifest is advertised from the document head', head.manifestLink === 'application/json', String(head.manifestLink));
 
   // -----------------------------------------------------------------------
   section('Tool lifecycle');
