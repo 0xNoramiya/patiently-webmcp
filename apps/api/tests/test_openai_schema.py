@@ -256,3 +256,63 @@ def test_reasoning_models_get_headroom_above_the_declared_cap():
 
 def test_sampling_is_a_no_op_when_nothing_is_declared():
     assert _apply_sampling({"model": "gpt-5"}, "gpt-5") == {"model": "gpt-5"}
+
+
+# --- degradation must be detectable ----------------------------------------
+
+from app.integrations.openai_client import DEGRADED_KEY
+from app.agents.triage_agent import TriageVerdict
+
+
+@pytest.mark.parametrize("name,schema", ALL_SCHEMAS)
+def test_every_stub_is_labelled_as_degraded(name, schema):
+    """A caller must always be able to tell a stub from a real answer.
+
+    This is the whole safety property: an empty `triage_flags` from a classifier
+    that never ran means something very different from an empty one it returned
+    deliberately, and nothing downstream can distinguish them without this flag.
+    """
+    assert _stub_response(schema)[DEGRADED_KEY] is True
+
+
+def test_unknown_schema_stub_is_also_labelled():
+    assert _stub_response({"properties": {"nothing_we_know": {}}})[DEGRADED_KEY] is True
+
+
+def test_triage_stub_raises_no_flags_but_admits_it_did_not_run():
+    stub = _stub_response(TRIAGE_RESPONSE_SCHEMA)
+    assert stub["triage_flags"] == [], "a failed classifier must never invent a red flag"
+    assert stub[DEGRADED_KEY] is True, "...and must never look like a clean screen"
+    assert "did not run" in stub["reasoning"].lower()
+
+
+def test_triage_verdict_defaults_to_having_run():
+    """`ran` defaults True so an unrelated construction is not read as an outage."""
+    assert TriageVerdict(flags=[], reasoning="").ran is True
+
+
+def test_a_degraded_verdict_is_not_an_all_clear():
+    """The pairing that matters: no flags AND ran=False is 'nobody looked'."""
+    v = TriageVerdict(flags=[], reasoning="The triage classifier did not run.", ran=False)
+    assert not v.flags and not v.ran
+
+
+# --- timeouts --------------------------------------------------------------
+
+from app.integrations.openai_client import REASONING_TIMEOUT_S, _timeout_for
+
+
+def test_reasoning_models_get_a_much_longer_timeout():
+    """Regression: gpt-5 drafting a SOAP note exceeded the 30s chat default and
+    surfaced as httpx.ReadTimeout in production while passing locally."""
+    assert _timeout_for("gpt-5", 30.0) == REASONING_TIMEOUT_S
+    assert _timeout_for("gpt-5-mini", 45.0) == REASONING_TIMEOUT_S
+
+
+def test_chat_models_keep_the_callers_timeout():
+    assert _timeout_for("gpt-4o-mini", 30.0) == 30.0
+    assert _timeout_for("gpt-4.1-mini", 45.0) == 45.0
+
+
+def test_a_caller_asking_for_longer_than_the_floor_is_respected():
+    assert _timeout_for("gpt-5", 600.0) == 600.0

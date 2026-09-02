@@ -160,6 +160,17 @@ export function PatientAgentTools({ ticketId }: { ticketId: string }) {
           out.push(`\nAdded to the chart:\n${captured.join('\n')}`);
         }
 
+        // A turn the classifier never saw must never read as reassurance.
+        if (reply.triage_unavailable) {
+          out.push(
+            '\n⚠ The clinic\u2019s triage system is currently unavailable, so this ' +
+              'message was NOT screened for danger signs. This is not an all-clear — ' +
+              'nobody has checked it. If the patient has chest pain, trouble breathing, ' +
+              'severe bleeding, weakness on one side, or feels very unwell, tell them ' +
+              'to speak to reception staff in person right now rather than waiting.'
+          );
+        }
+
         // Escalation is the clinic's decision, reported back as an outcome.
         if (reply.triage_flags?.length) {
           const labels = reply.triage_flags

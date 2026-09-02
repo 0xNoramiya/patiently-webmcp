@@ -54,8 +54,20 @@ def _headers() -> dict[str, str]:
 _REASONING_PREFIXES = ("gpt-5", "o1", "o3", "o4")
 
 
+#: A reasoning model emits nothing at all while it thinks, so a timeout sized
+#: for a chat completion fires part-way through the reasoning and looks exactly
+#: like the model being unreachable. Drafting a SOAP note on gpt-5 routinely
+#: runs past 30s; it was timing out in production while passing locally, purely
+#: because the local machine happened to be a few seconds faster.
+REASONING_TIMEOUT_S = 180.0
+
+
 def _is_reasoning_model(model: str) -> bool:
     return model.startswith(_REASONING_PREFIXES)
+
+
+def _timeout_for(model: str, base: float) -> float:
+    return max(base, REASONING_TIMEOUT_S) if _is_reasoning_model(model) else base
 
 
 def _apply_sampling(
@@ -250,7 +262,7 @@ async def chat(
     last_error: Exception | None = None
     for attempt in range(MAX_RETRIES):
         try:
-            data = await _post(payload, timeout=timeout)
+            data = await _post(payload, timeout=_timeout_for(chosen, timeout))
             return data["choices"][0]["message"]["content"].strip()
         except OpenAIError as e:
             last_error = e
@@ -281,7 +293,7 @@ async def _post(payload: dict[str, Any], *, timeout: float = 45.0) -> dict[str, 
 
 
 async def _post_json(payload: dict[str, Any]) -> dict[str, Any]:
-    data = await _post(payload)
+    data = await _post(payload, timeout=_timeout_for(str(payload.get("model", "")), 45.0))
     try:
         content = data["choices"][0]["message"]["content"]
     except (KeyError, IndexError) as e:
@@ -311,19 +323,37 @@ def _as_json_object(
     return payload
 
 
+#: Marks a response the model never actually produced. Callers MUST check it
+#: before treating the payload as an answer — an empty `triage_flags` from a
+#: classifier that failed to run means something very different from an empty
+#: one it returned on purpose.
+DEGRADED_KEY = "_degraded"
+
+
 def _stub_response(schema: dict[str, Any], error: str | None = None) -> dict[str, Any]:
-    """Minimal stub that satisfies our known schemas."""
+    """Minimal stub that satisfies our known schemas.
+
+    Every stub carries DEGRADED_KEY so no caller can mistake it for a real
+    result. The values here exist only to keep the surrounding code from
+    crashing; they are not clinical output.
+    """
     props = (schema or {}).get("properties", {})
     if "reply_text" in props:
         return {
+            DEGRADED_KEY: True,
             "reply_text": "Sorry, the system is busy. Please try again in a moment.",
             "extracted_fields": {},
             "is_complete": False,
         }
     if "triage_flags" in props and "chief_complaint" not in props:
-        return {"triage_flags": [], "reasoning": "stub: classifier offline"}
+        return {
+            DEGRADED_KEY: True,
+            "triage_flags": [],
+            "reasoning": "The triage classifier did not run.",
+        }
     if "chief_complaint" in props:
         return {
+            DEGRADED_KEY: True,
             "chief_complaint": "Pending summary",
             "hpi_paragraph": "Summary service unavailable.",
             "relevant_history": [],
@@ -332,4 +362,4 @@ def _stub_response(schema: dict[str, Any], error: str | None = None) -> dict[str
             "suggested_questions": [],
             "differentials": [],
         }
-    return {}
+    return {DEGRADED_KEY: True}

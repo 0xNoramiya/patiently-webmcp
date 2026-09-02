@@ -81,6 +81,10 @@ class AgentTurn:
     triage_flags: list[str]
     triage_reasoning: str
     is_complete: bool
+    #: True when the red-flag classifier could not be reached for this turn.
+    #: The turn was NOT screened, and no amount of empty `triage_flags` should
+    #: be read as reassurance.
+    triage_unavailable: bool = False
 
 
 def _merge_structured(
@@ -309,6 +313,17 @@ async def respond(
 
     # Update session aggregates
     session.structured_data = _merge_structured(session.structured_data, extracted)
+
+    # Record an unscreened turn on the session itself, so it survives the
+    # request and every later reader — the chart, the dashboard, the clinician's
+    # agent — can see that this visit has a gap in its safety screening. It is
+    # sticky on purpose: a later turn succeeding does not retroactively screen
+    # the turn that was missed.
+    if not triage_verdict.ran:
+        session.structured_data = {
+            **session.structured_data,
+            "_triage_unavailable": True,
+        }
     merged_flags = list(session.triage_flags or [])
     for f in flags_this_turn:
         if f not in merged_flags:
@@ -346,4 +361,5 @@ async def respond(
         triage_flags=flags_this_turn,
         triage_reasoning=triage_verdict.reasoning,
         is_complete=is_complete,
+        triage_unavailable=not triage_verdict.ran,
     )

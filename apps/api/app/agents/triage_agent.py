@@ -8,16 +8,19 @@ plus a short reasoning string for audit.
 """
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass
 
 from app.core.config import get_settings
-from app.integrations.openai_client import generate_json
+from app.integrations.openai_client import DEGRADED_KEY, generate_json
 from app.agents.schemas import TRIAGE_RESPONSE_SCHEMA
 
 _PROMPT_PATH = os.path.join(
     os.path.dirname(__file__), "prompts", "triage_system.txt"
 )
+logger = logging.getLogger(__name__)
+
 with open(_PROMPT_PATH, "r", encoding="utf-8") as f:
     TRIAGE_SYSTEM_PROMPT = f.read()
 
@@ -26,6 +29,10 @@ with open(_PROMPT_PATH, "r", encoding="utf-8") as f:
 class TriageVerdict:
     flags: list[str]
     reasoning: str
+    #: False when the classifier could not be reached. An empty `flags` with
+    #: `ran=False` means "nobody checked", NOT "nothing was found" — the two
+    #: must never be collapsed, because one of them is a patient nobody looked at.
+    ran: bool = True
 
 
 async def classify_turn(
@@ -60,8 +67,15 @@ async def classify_turn(
         temperature=0.0,  # deterministic classifier
     )
 
+    degraded = bool(result.get(DEGRADED_KEY))
     raw_flags = result.get("triage_flags") or []
     raised_set = set(already_raised)
     new_flags = [f for f in raw_flags if f not in raised_set]
     reasoning = (result.get("reasoning") or "").strip()
-    return TriageVerdict(flags=new_flags, reasoning=reasoning)
+
+    if degraded:
+        logger.error(
+            "Triage classifier unavailable — this turn was NOT screened for red flags."
+        )
+
+    return TriageVerdict(flags=new_flags, reasoning=reasoning, ran=not degraded)

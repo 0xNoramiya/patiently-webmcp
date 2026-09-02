@@ -252,6 +252,36 @@ resolved the first as declined, so an agent could tell a doctor they had refused
 something they were never shown. Attributing a clinical judgement to a person
 who never made one is worse than having no answer at all.
 
+### A failed safety check is never reported as a clean one
+
+The triage classifier is a model call, and model calls fail. When one does,
+`generate_json` returns a schema-shaped stub so the intake conversation
+survives — and the triage stub returns an empty flag list.
+
+That is indistinguishable from a clean screen unless something says otherwise,
+and it was not saying otherwise. A patient describing textbook ACS symptoms
+during an outage was queued as routine, priority 0, no flags, with nothing
+anywhere recording that the safety check had not run. Verified by pointing the
+classifier at a model the account cannot use and watching it happen.
+
+Now every stub carries a `_degraded` marker, the triage verdict carries `ran`,
+and an unscreened turn is recorded on the session permanently — a later turn
+succeeding does not retroactively screen the one that was missed. All three
+readers are told plainly:
+
+- The **patient's agent** is told the message was not screened, that this is not
+  an all-clear, and to send the patient to reception in person if they have
+  chest pain, breathing trouble, severe bleeding, one-sided weakness, or feel
+  very unwell.
+- The **clinician's agent** gets `TRIAGE SCREENING INCOMPLETE` at the top of the
+  chart, and the header reads `Red flags: NOT SCREENED` instead of the false
+  reassurance `No triage red flags`.
+- The **clinician** sees a banner on the patient's record.
+
+The system does not escalate priority by itself here. Guessing a triage
+decision on the classifier's behalf would be the same mistake in the other
+direction — it surfaces the gap and lets a human decide.
+
 ### Untrusted content is fenced, not filtered
 
 The pre-visit chart contains text a *patient* typed, flowing toward a

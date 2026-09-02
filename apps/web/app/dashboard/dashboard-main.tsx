@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Logo } from '@/components/Logo';
 import { api } from '@/lib/api';
 import {
+  intakeWasUnscreened,
   POLI_LABEL,
   RED_FLAG_LABELS,
   TICKET_STATUS_LABEL,
@@ -615,6 +616,22 @@ function DetailPane({
             </div>
             <div className="text-sm text-ink-900 mt-1">
               {flags.map((f) => RED_FLAG_LABELS[f] || f).join(' · ')}
+            </div>
+          </div>
+        )}
+        {/* A gap in screening is not an alert about the patient — it is an
+            alert about the system. It has to be visible either way, because a
+            chart with no red flags on it looks identical to a screened one. */}
+        {intakeWasUnscreened(session) && (
+          <div className="mt-3 rounded-xl border border-warn-100 bg-warn-50 px-4 py-3">
+            <div className="text-xs font-bold uppercase tracking-wide text-warn-600">
+              ⚠ Triage screening incomplete
+            </div>
+            <div className="mt-1 text-sm text-ink-900">
+              The classifier was unavailable for at least one of this
+              patient&rsquo;s intake messages, so it was never screened for red
+              flags. An empty flag list below is not an all-clear — screen this
+              patient yourself.
             </div>
           </div>
         )}

@@ -152,6 +152,23 @@ export interface AgentResponse {
   triage_flags: string[];
   triage_reasoning?: string;
   is_complete: boolean;
+  /**
+   * The red-flag classifier could not be reached for this turn, so the message
+   * was never screened. An empty `triage_flags` alongside this is NOT an
+   * all-clear.
+   */
+  triage_unavailable?: boolean;
+}
+
+/** True when any turn of this intake went unscreened by the triage classifier. */
+export function intakeWasUnscreened(
+  session: Pick<IntakeSession, 'structured_data'> | null | undefined
+): boolean {
+  return Boolean(
+    (session?.structured_data as Record<string, unknown> | undefined)?.[
+      '_triage_unavailable'
+    ]
+  );
 }
 
 export interface AppointmentReminder {

@@ -107,6 +107,7 @@ async def patient_message(
         extracted_fields=turn.extracted_fields,
         triage_flags=turn.triage_flags,
         is_complete=turn.is_complete,
+        triage_unavailable=turn.triage_unavailable,
     )
 
 

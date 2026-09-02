@@ -39,6 +39,10 @@ class AgentResponse(BaseModel):
     extracted_fields: dict[str, Any] = {}
     triage_flags: list[str] = []
     is_complete: bool = False
+    #: The red-flag classifier could not be reached for this turn, so the
+    #: message was never screened. An empty `triage_flags` alongside this is
+    #: not an all-clear.
+    triage_unavailable: bool = False
 
 
 class IntakeSummary(BaseModel):

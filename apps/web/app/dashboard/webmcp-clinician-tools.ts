@@ -23,6 +23,7 @@ import { useRef } from 'react';
 
 import { api } from '@/lib/api';
 import {
+  intakeWasUnscreened,
   POLI_LABEL,
   RED_FLAG_LABELS,
   TICKET_STATUS_LABEL,
@@ -278,12 +279,18 @@ export function useClinicianTools(deps: ClinicianToolDeps) {
           /* intake may not have started */
         }
 
+        // "No triage red flags" is only true if something looked. When the
+        // classifier did not run, saying it is a false reassurance sitting one
+        // line above the warning that contradicts it.
+        const screened = !intakeWasUnscreened(session);
         const head = [
           `${detail.ticket_number} · ${detail.patient.name} (${detail.patient.age}${detail.patient.sex})`,
           `${POLI_LABEL[detail.poli]} · ${TICKET_STATUS_LABEL[detail.status]}${detail.is_followup ? ' · FOLLOW-UP VISIT' : ''}`,
           detail.triage_flags.length
             ? `⚠ ACTIVE RED FLAGS: ${flagLabels(detail.triage_flags)}`
-            : 'No triage red flags.',
+            : screened
+              ? 'No triage red flags.'
+              : 'Red flags: NOT SCREENED — see the warning below.',
         ].join('\n');
 
         if (detail.previous_visit) {
@@ -740,8 +747,17 @@ function severityRank(s: string): number {
 }
 
 function renderChart(head: string, session: IntakeSession | null): string {
+  // Lead with it. A clinician reading a chart with an unscreened turn needs to
+  // know before they read anything reassuring in it.
+  const unscreened = intakeWasUnscreened(session)
+    ? '\n\n⚠ TRIAGE SCREENING INCOMPLETE — at least one of this patient\u2019s intake ' +
+      'messages was never screened for red flags, because the classifier was ' +
+      'unavailable at the time. Absence of red flags below does NOT mean none ' +
+      'are present. Screen this patient yourself.'
+    : '';
+
   if (!session?.summary) {
-    return `${head}\n\nNo pre-visit chart yet — this patient has not completed intake.`;
+    return `${head}${unscreened}\n\nNo pre-visit chart yet — this patient has not completed intake.`;
   }
   const s = session.summary;
   const body = [
@@ -766,5 +782,5 @@ function renderChart(head: string, session: IntakeSession | null): string {
     .filter(Boolean)
     .join('\n');
 
-  return `${head}\n\n${wrapUntrusted('previsit_chart', body)}`;
+  return `${head}${unscreened}\n\n${wrapUntrusted('previsit_chart', body)}`;
 }
