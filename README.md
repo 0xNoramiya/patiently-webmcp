@@ -8,7 +8,7 @@
 [![Live demo](https://img.shields.io/badge/Live%20demo-patiently--webmcp.vercel.app-0e8265)](https://patiently-webmcp.vercel.app)
 [![WebMCP Challenge](https://img.shields.io/badge/OpenAI-WebMCP%20Challenge%202026-10b981)](https://webmcp.devpost.com)
 [![Tools](https://img.shields.io/badge/WebMCP%20tools-20-0e8265)](#the-tool-surface)
-[![Evals](https://img.shields.io/badge/evals-91%20%2B%2035%20%2B%2012%20passing-10b981)](#evals)
+[![Evals](https://img.shields.io/badge/evals-91%20%2B%2035%20%2B%2012%20%2B%2012%20passing-10b981)](#evals)
 [![License](https://img.shields.io/badge/License-MIT-cbd5e1)](LICENSE)
 
 ---
@@ -304,6 +304,25 @@ readers are told plainly:
 The system does not escalate priority by itself here. Guessing a triage
 decision on the classifier's behalf would be the same mistake in the other
 direction — it surfaces the gap and lets a human decide.
+
+### The patient's language is the patient's; the chart is the clinician's
+
+"Intake in your own language" was claimed on the landing page, in the tool
+descriptions, in this README and in the submission text — and nothing tested it
+until iteration 15. It works, and the property that actually matters is the one
+that would have been easiest to miss:
+
+- The conversation runs in Indonesian and stays there across turns, in a natural
+  register (*"Halo Bu Sarah…"*), correctly referencing last week's visit.
+- **The triage classifier fires on Indonesian.** `CHEST_PAIN_CARDIAC` raised from
+  *"Dada saya terasa sesak… menjalar ke lengan kiri"*, ticket escalated to
+  priority 100. A red-flag classifier that only worked in English would be worse
+  than none, because the queue would look screened.
+- Indonesian answers still populate the structured OPQRST fields.
+- **The chart comes back in English**, cardiac concern intact. A doctor should
+  not have to translate a chart to read it.
+
+`npm run eval:bilingual` holds all four.
 
 ### The interaction checker is a safety net with a stated edge
 
@@ -637,6 +656,7 @@ stubbed `document.modelContext`, and calls every tool the way an agent would.
 cd apps/web && npm run eval            # 91 assertions, no model calls
 cd apps/web && npm run eval:live       # 35 assertions, full workflow on real models
 cd apps/web && npm run eval:injection  # 12 assertions, real prompt-injection attacks
+cd apps/web && npm run eval:bilingual  # 12 assertions, intake in Bahasa Indonesia
 ```
 
 `eval` drives the tool surface, the approval gate and the discovery endpoints

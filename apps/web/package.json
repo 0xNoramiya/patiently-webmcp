@@ -9,7 +9,8 @@
     "lint": "next lint",
     "eval": "node evals/run.mjs",
     "eval:live": "node evals/walkthrough.mjs",
-    "eval:injection": "node evals/injection.mjs"
+    "eval:injection": "node evals/injection.mjs",
+    "eval:bilingual": "node evals/bilingual.mjs"
   },
   "dependencies": {
     "@mcp-b/webmcp-polyfill": "^5.1.0",

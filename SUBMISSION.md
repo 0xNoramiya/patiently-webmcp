@@ -78,10 +78,12 @@ in.
 
 ## What people and agents can do together that was hard before
 
-A patient describes chest pain in Bahasa Indonesia to their own agent. An
-independent triage classifier reads the same message server-side, fires
-`CHEST_PAIN_CARDIAC`, and the ticket jumps the queue — while the patient's agent
-is told to send them to reception now. By the time the clinician's agent pulls
+A patient describes chest pain in Bahasa Indonesia to their own agent — *"Dada
+saya terasa sesak sejak pagi tadi, nyerinya menjalar ke lengan kiri"*. An
+independent triage classifier reads that same Indonesian message server-side,
+fires `CHEST_PAIN_CARDIAC`, and the ticket jumps to priority 100 — while the
+patient's agent is told to send them to reception now. The chart the doctor
+then reads is in English. By the time the clinician's agent pulls
 the chart, the HPI, the follow-up delta from last week's visit, and "pulmonary
 embolism — must not miss" are already written.
 
@@ -151,8 +153,8 @@ Three implementation details worth knowing, each of which cost real debugging:
 
 **Verification.** 204 API tests and three eval suites that drive the real
 `document.modelContext` in a real browser against the deployed app — 91
-structural assertions, a 35-assertion live consultation on real models, and 12
-prompt-injection attacks. There is no stub in the repository; an earlier one was
+structural assertions, a 35-assertion live consultation on real models, 12
+prompt-injection attacks and 12 bilingual assertions. There is no stub in the repository; an earlier one was
 deleted after it hid three genuine bugs.
 
 Discovery is published too: `/llms.txt`, `/.well-known/webmcp`, robots with AI
