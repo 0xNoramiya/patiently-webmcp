@@ -67,18 +67,38 @@ prescription drafting, drug-interaction checker, vitals capture and PDF export
 were built in May 2026 for a different hackathon.
 
 **Everything WebMCP is new, built during the submission period (Sep 2–3, 2026),
-and it is the only thing this submission asks to be judged on.** Specifically:
+and it is the only thing this submission asks to be judged on.** Since the
+baseline commit: **26 commits, 32 new files, 50 modified, +7,169 / −899 lines.**
 
-| New in this submission | Path |
-| --- | --- |
-| WebMCP runtime adapter (namespace shim, result normalization, untrusted-text fencing) | `apps/web/lib/webmcp/runtime.ts` |
-| Agent session — activity log + blocking human-approval store | `apps/web/lib/webmcp/agent-session.tsx` |
-| Lifecycle-bound tool registration hook | `apps/web/lib/webmcp/use-webmcp-tool.ts` |
-| 11 clinician tools | `apps/web/app/dashboard/webmcp-clinician-tools.ts` |
-| 6 patient tools | `apps/web/app/p/[ticket]/webmcp-patient-tools.tsx` |
-| Approval dialog + live agent activity panel | `apps/web/components/AgentActivityPanel.tsx` |
-| WebMCP eval harness (38 assertions, real browser) | `apps/web/evals/` |
-| Migration of all model calls onto one OpenAI client with Structured Outputs | `apps/api/app/integrations/openai_client.py` |
+| Area | What was added | Where |
+| --- | --- | --- |
+| **WebMCP core** | Runtime adapter with the namespace shim, polyfill install and untrusted-text fencing; typed API surface; lifecycle-bound registration hook | `lib/webmcp/runtime.ts`, `types.ts`, `use-webmcp-tool.ts` |
+| | Agent session — activity log, and the approval **queue** every write blocks on | `lib/webmcp/agent-session.tsx` |
+| | Declarative submit bridge, so `respondWith()` survives React's event delegation | `lib/webmcp/declarative.ts` |
+| | Published tool catalogue, single source of truth for the discovery surfaces | `lib/webmcp/catalog.ts` |
+| | Runtime installed on every page, ahead of any component | `components/WebMCPRuntime.tsx` |
+| **Tool surfaces** | 11 clinician tools | `app/dashboard/webmcp-clinician-tools.ts` |
+| | 6 patient tools | `app/p/[ticket]/webmcp-patient-tools.tsx` |
+| | 2 front-door tools, so an agent can let itself into the demo | `app/webmcp-landing.tsx` |
+| | 1 **declarative** tool — a plain form with `toolname` / `toolparamdescription` | `app/receptionist/issue-ticket-form.tsx` |
+| | JSX typings for the declarative attributes | `types/webmcp-jsx.d.ts` |
+| **Human-in-the-loop UI** | Blocking approval dialog, live agent activity panel, header status pill | `components/AgentActivityPanel.tsx` |
+| | Patient-side agent badge | `app/p/[ticket]/patient-agent-badge.tsx` |
+| **Discovery** | `llms.txt`, `/.well-known/webmcp` manifest, robots, sitemap, OG/Twitter images | `app/llms.txt/`, `app/webmcp-manifest/`, `app/robots.ts`, `app/sitemap.ts`, `app/opengraph-image.tsx`, `app/twitter-image.tsx` |
+| **Evals** | 91 structural assertions, a 32-assertion live workflow, 12 prompt-injection attacks | `evals/run.mjs`, `walkthrough.mjs`, `injection.mjs` |
+| **Backend** | Every agent moved onto one OpenAI client with Structured Outputs, per-model dialects and degradation markers | `app/integrations/openai_client.py` |
+| | OpenAI TTS, replacing a dead EdgeTTS dependency | `app/integrations/openai_tts.py` |
+| | Triage input fencing, degradation propagation, summariser guard, upload validation, security headers, PDF text sanitising | 50 modified files across `app/` |
+| **Tests** | Schema translation, model dialects, summariser degradation, PDF text, upload validation | `apps/api/tests/test_*.py` |
+| **Deploy** | Fly config with a volume for generated audio; Vercel config | `apps/api/fly.toml`, `apps/web/vercel.json` |
+
+Verify the split yourself:
+
+```bash
+git log --format='%h %ad %s' --date=short          # the baseline is the first commit
+git diff --stat $(git log --format=%H --reverse | head -1) HEAD
+node scripts/check-docs.mjs                        # asserts this README matches the code
+```
 
 The pre-existing work is in the repository because the WebMCP layer needs
 something real to drive — a tool that drafts a prescription is only interesting
@@ -185,7 +205,7 @@ one deciding whether to visit. So the site also publishes what it can do:
 | Endpoint | What it is |
 | --- | --- |
 | [`/llms.txt`](https://patiently-webmcp.vercel.app/llms.txt) | Plain-text brief: what the clinic does, the trust tiers, every tool, and the two safety properties |
-| [`/.well-known/webmcp`](https://patiently-webmcp.vercel.app/.well-known/webmcp) | JSON manifest of all 19 tools by surface, with tier and `requiresHumanConfirmation` |
+| [`/.well-known/webmcp`](https://patiently-webmcp.vercel.app/.well-known/webmcp) | JSON manifest of all 20 tools by surface, with tier and `requiresHumanConfirmation` |
 | [`/robots.txt`](https://patiently-webmcp.vercel.app/robots.txt) | Explicitly allows agent crawlers; keeps every crawler out of `/p/` patient pages |
 | [`/sitemap.xml`](https://patiently-webmcp.vercel.app/sitemap.xml) | Public routes only |
 | Schema.org JSON-LD | `WebSite`, `SoftwareApplication`, `FAQPage` — typed as software, not `MedicalClinic`, because this is a demo and claiming otherwise would be a lie told to machines |
@@ -449,20 +469,30 @@ document.modelContext.registerTool({
     },
     required: ["ticket", "drug_name"],
   },
+  annotations: { readOnlyHint: false },
   execute: async ({ ticket, drug_name }, { signal }) => {
     const { entry } = await requireTicket(ticket);
     const target = await findDraft(entry, drug_name);
 
     // The agent's execute() parks here until a human clicks. The write only
     // exists on the approved branch — the model cannot route around it.
-    const ok = await requestApproval({
+    // Proposals queue, so a second tool call cannot answer this one.
+    const outcome = await requestApproval({
       title: `Sign ${target.drug_name} for ${entry.ticket.ticket_number}`,
       summary: `${entry.patient.name} — ${target.dose} ${target.frequency}`,
-      lines: await interactionWarnings(entry, target),
+      lines: await interactionWarnings(entry, target),   // shown at signing time
       danger: true,
     }, signal);
 
-    if (!ok) return `Clinician declined. ${target.drug_name} remains unsigned.`;
+    // Not a boolean: only one of the four outcomes is a decision someone made,
+    // and saying "the clinician declined" about the other three would put words
+    // in their mouth.
+    if (outcome !== 'approved') {
+      return describeNonApproval(
+        outcome,                                          // declined | expired | cancelled
+        `${target.drug_name} remains an unsigned draft.`
+      );
+    }
 
     await api.approvePrescription(target.id, true, adminPassword);
     return `${target.drug_name} signed by the clinician.`;
@@ -617,7 +647,8 @@ Then open **http://localhost:3000** in a WebMCP-capable browser:
 - **ChatGPT desktop app** → in-app browser (WebMCP on by default), or
 - **Chrome 149+** → enable `chrome://flags/#enable-webmcp-testing`, restart.
 
-The dashboard's *Agent activity* panel shows `17 tools live` when WebMCP is
+The clinic header shows a live count for the page you are on — 11 on the
+dashboard, 6 on a patient's ticket, 2 on the front door — when WebMCP is
 detected, and `WebMCP not detected` otherwise — so you can tell instantly
 whether the browser is set up correctly.
 
@@ -640,7 +671,7 @@ On `/p/<ticket-id>`:
 ```
 Browser (ChatGPT in-app / Chrome 149+)
 │
-├─ document.modelContext ──── 17 WebMCP tools
+├─ document.modelContext ──── 20 WebMCP tools, registered per page
 │                              ├─ read   → immediate
 │                              ├─ draft  → immediate, unsigned
 │                              └─ commit → BLOCKS on human click

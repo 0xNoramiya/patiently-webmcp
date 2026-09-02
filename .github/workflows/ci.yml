@@ -71,6 +71,14 @@ jobs:
         working-directory: apps/web
         run: npx tsc --noEmit
 
+      # The README drifted from the code three times while this was built —
+      # a tool count that was never true, a claim about the UI that was wrong
+      # in a second place after being fixed in the first, and a code sample
+      # demonstrating an API that no longer existed. Judges read the README
+      # against the source; catch it here instead.
+      - name: Docs match the code
+        run: node scripts/check-docs.mjs
+
       - name: Build
         working-directory: apps/web
         run: npm run build

@@ -111,7 +111,7 @@ export default async function Home() {
 
           <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-ink-500 text-pretty">
             Patiently exposes a working outpatient clinic — its queue, its
-            charts, its prescriptions — as <strong className="font-semibold text-ink-700">17 WebMCP tools</strong>.
+            charts, its prescriptions — as <strong className="font-semibold text-ink-700">20 WebMCP tools</strong>.
             A doctor runs their floor by talking. A patient does intake in their
             own language. Each through the agent they already have, in the tab
             they are already signed into.
