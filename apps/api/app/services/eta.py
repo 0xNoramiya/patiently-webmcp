@@ -53,9 +53,18 @@ async def avg_consultation_minutes(db: AsyncSession, poli: Poli) -> float:
     return sum(samples) / len(samples)
 
 
-def eta_range(position: int, avg_minutes: float) -> tuple[int, int]:
-    """Return (low, high) ETA in minutes for a ticket at queue position N (1-indexed)."""
-    base = position * avg_minutes
+def eta_range(people_ahead: int, avg_minutes: float) -> tuple[int, int]:
+    """Return (low, high) minutes until this patient is called.
+
+    `people_ahead` is how many consultations must finish first — the patients
+    queued ahead of them, plus anyone currently in a consulting room.
+
+    This used to take the 1-indexed queue position, which quoted every patient
+    one extra consultation: the person at the front of an idle clinic was told
+    six to ten minutes when the doctor was free and they were about to be
+    called. Position 1 with nobody in a room means nobody is ahead of you.
+    """
+    base = max(0, people_ahead) * avg_minutes
     low = max(0, int(round(base * 0.8)))
     high = max(low + 1, int(round(base * 1.2)))
     return low, high

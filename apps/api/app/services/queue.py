@@ -181,9 +181,15 @@ async def get_queue_state(db: AsyncSession, poli: Poli) -> QueueState:
 
     pos_map: dict[uuid.UUID, int] = {t.id: i for i, t in enumerate(waiting_sorted, start=1)}
 
+    # Anyone already in a consulting room has to finish before the queue moves.
+    in_room = sum(1 for t in tickets if t.status == TicketStatus.in_consultation)
+
     for t in tickets:
         position = pos_map.get(t.id, 0)
-        low, high = eta_range(max(position, 0), avg)
+        # Position is 1-indexed, so the patient at the front has nobody queued
+        # ahead of them — only whoever is currently being seen.
+        people_ahead = max(position - 1, 0) + in_room
+        low, high = eta_range(people_ahead, avg)
         flags = list(t.intake_session.triage_flags) if t.intake_session else []
         entry = QueueEntry(
             ticket=TicketOut.model_validate(t),

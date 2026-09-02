@@ -14,17 +14,32 @@ def test_priors_cover_every_poli():
         assert PRIOR_MINUTES[poli] > 0
 
 
-def test_eta_range_position_one_is_one_avg_consult():
+def test_nobody_ahead_means_no_wait():
+    """The front of an idle clinic used to be quoted six to ten minutes.
+
+    eta_range took the 1-indexed position, so it charged every patient one extra
+    consultation — including the person about to be called into an empty room.
+    """
+    low, high = eta_range(0, avg_minutes=10)
+    assert low == 0
+
+
+def test_one_consultation_ahead_is_one_average():
     low, high = eta_range(1, avg_minutes=10)
-    assert low == 8  # 10 * 0.8
+    assert low == 8   # 10 * 0.8
     assert high == 12  # 10 * 1.2
 
 
-def test_eta_range_scales_with_position():
-    low_p1, high_p1 = eta_range(1, 10)
-    low_p5, high_p5 = eta_range(5, 10)
-    assert low_p5 > low_p1
-    assert high_p5 > high_p1
+def test_eta_scales_with_the_number_of_people_ahead():
+    low_1, high_1 = eta_range(1, 10)
+    low_5, high_5 = eta_range(5, 10)
+    assert low_5 > low_1
+    assert high_5 > high_1
+
+
+def test_a_negative_count_cannot_produce_a_negative_wait():
+    low, high = eta_range(-3, 10)
+    assert low == 0 and high >= 1
 
 
 def test_eta_range_low_lt_or_eq_high():
@@ -34,7 +49,7 @@ def test_eta_range_low_lt_or_eq_high():
             assert low <= high
 
 
-def test_eta_range_position_zero_clamps_low_to_zero():
+def test_zero_clamps_low_to_zero():
     low, high = eta_range(0, 10)
     assert low == 0
     assert high >= 1  # high - low must be >= 1

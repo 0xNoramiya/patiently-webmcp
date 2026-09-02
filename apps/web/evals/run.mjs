@@ -225,6 +225,26 @@ async function main() {
   check('queue output includes ticket numbers', /[A-E]-\d{3}/.test(queue.text));
   check('queue output includes ETA', /ETA \d+-\d+ min/.test(queue.text));
 
+  // ETAs are shown on every patient's phone. They must rise with position — a
+  // later patient quoted a shorter wait than the person in front of them is a
+  // visible lie. eta_range used to take the 1-indexed position, which charged
+  // everyone one extra consultation and told the front of an idle clinic to
+  // expect six to ten minutes.
+  const etas = [...queue.text.matchAll(/position (\d+) · ETA (\d+)-(\d+) min/g)]
+    .map((m) => ({ pos: +m[1], low: +m[2], high: +m[3] }));
+  check('the queue reports ETAs at all', etas.length > 0, queue.text.slice(0, 200));
+  const byPos = [...etas].sort((a, b) => a.pos - b.pos);
+  check(
+    'ETA never decreases as queue position increases',
+    byPos.every((e, i) => i === 0 || e.low >= byPos[i - 1].low),
+    JSON.stringify(byPos.slice(0, 6))
+  );
+  check(
+    'every ETA range is well-formed (low <= high)',
+    etas.every((e) => e.low <= e.high),
+    JSON.stringify(etas.slice(0, 4))
+  );
+
   const flagged = await callTool(page, 'list_patient_queue', { only_flagged: true });
   check('only_flagged filters', /red flag|patient\(s\) on the floor/i.test(flagged.text), flagged.text.slice(0, 100));
 
