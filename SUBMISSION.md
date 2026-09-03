@@ -124,6 +124,48 @@ Three safety properties are structural rather than prompted:
   unreachable, the turn is recorded as unscreened and everyone is told so, rather
   than an empty flag list quietly reading as reassurance.
 
+## Why WebMCP fits a clinic, and what people and agents can now do together
+
+WebMCP's distinguishing property is not that an agent can call tools. It is
+*where* those tools run: inside a page the human is already looking at, in a
+session they are already authenticated to. A clinic needs all three consequences
+of that.
+
+**The auth problem disappears.** A conventional MCP server for a clinic would
+need its own copy of the identity model, its own credential store and its own
+audit trail. That is a second front door to patient data, which is the last
+thing a clinic wants. Patiently's tools inherit the login the clinician already
+has, so there is no key to issue, leak or revoke, and the agent can do exactly
+what the person sitting next to it can do, no more.
+
+**The human stays in the room.** Because the tools run in the page, every effect
+is rendered. When the agent pulls a chart, that patient becomes the selected
+patient on the clinician's actual screen. The agent is not operating a system
+somewhere else and reporting back; the doctor is watching it work.
+
+**Consent becomes structural instead of prompted.** A server-side tool that
+writes a prescription has already written it by the time a human sees the
+result. A WebMCP tool can park its own `execute` on a promise that only a click
+resolves, so the write does not exist on the un-approved branch. That is a
+guarantee, not an instruction a model may or may not follow.
+
+Healthcare is where this stops being a nicety. The cost of an agent quietly
+getting it wrong is not a bad purchase.
+
+**What that makes possible.** A patient describes chest pain in Bahasa Indonesia
+to their own agent. An independent classifier reads that same Indonesian text
+server-side, fires a cardiac red flag, and the ticket jumps to priority 100,
+while the patient's agent tells them to find staff now. By the time the
+clinician's agent pulls the chart, the history, the delta from last week's
+visit, and "pulmonary embolism, must not miss" are already written, in English.
+The clinician then dictates vitals, drafts a note and prescriptions, and signs
+one, and every one of those commits opened a dialog and blocked until they
+clicked it.
+
+Two agents, two humans, one patient, one shared live page. Neither person had to
+learn the other's language, and neither agent could write anything a person did
+not approve.
+
 ## How we built it
 
 The clinic runs on FastAPI, Pydantic, SQLAlchemy and PostgreSQL on Fly.io. The
