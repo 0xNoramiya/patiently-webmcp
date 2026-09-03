@@ -27,6 +27,13 @@ register either way. No sign-in.
 The front door registers two tools of its own, so you can simply ask your agent
 to *"list the demo surfaces"* and then *"open the clinician demo"*.
 
+## Demo video
+
+**<<PASTE YOUTUBE URL HERE>>** — 2 min 34 s, public.
+
+Every screen in it is the deployed app, recorded through a real browser against
+the live API. The composition and the scripts that build it are in `video/`.
+
 ## Repository
 
 **https://github.com/0xNoramiya/patiently-webmcp** — MIT.
