@@ -156,7 +156,7 @@ only in Chrome behind a flag and in ChatGPT's browser, so a page that merely
 consumes the API registers nothing anywhere else. The polyfill is installed at
 module scope rather than in a React effect.
 
-**Verification is against the deployed app, not a mock.** 274 API tests, plus
+**Verification is against the deployed app, not a mock.** 276 API tests, plus
 four eval suites that drive the real `document.modelContext` in a real browser
 against the live site: 94 structural assertions, a 35-assertion live consultation
 on real models, 12 prompt-injection attacks and 12 bilingual assertions. There is
