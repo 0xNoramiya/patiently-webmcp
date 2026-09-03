@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Patiently — WebMCP Challenge demo</title>
+<style>
+  /* Bundled because the render host has only DejaVu and Ubuntu installed —
+     without these, Inter silently fell back to a monospace face. */
+  @font-face{font-family:Inter;src:url('fonts/inter-400.woff2') format('woff2');font-weight:400;font-display:block}
+  @font-face{font-family:Inter;src:url('fonts/inter-500.woff2') format('woff2');font-weight:500;font-display:block}
+  @font-face{font-family:Inter;src:url('fonts/inter-600.woff2') format('woff2');font-weight:600;font-display:block}
+  @font-face{font-family:Inter;src:url('fonts/inter-700.woff2') format('woff2');font-weight:700;font-display:block}
+  @font-face{font-family:Inter;src:url('fonts/inter-800.woff2') format('woff2');font-weight:800;font-display:block}
+  @font-face{font-family:'JetBrains Mono';src:url('fonts/mono-500.woff2') format('woff2');font-weight:500;font-display:block}
+</style>
+<style>
+  :root{
+    --brand-700:#0c6b54; --brand-600:#0e8265; --brand-500:#10b981;
+    --brand-100:#d1fae5; --brand-50:#ecfdf5;
+    --ink-900:#0f172a; --ink-700:#1e293b; --ink-500:#475569;
+    --ink-300:#94a3b8; --ink-100:#e2e8f0; --ink-50:#f8fafc;
+    --alert-600:#dc2626; --alert-100:#fee2e2; --warn-600:#d97706;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  [data-composition-id="root"]{
+    width:1920px;height:1080px;position:relative;overflow:hidden;
+    background:var(--ink-900);
+    font-family:Inter,system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+   /* data-track-index does NOT control layering — CSS does. Stages sit at the
+     bottom, overlays above the footage, cards above everything. */
+  .clip{position:absolute;inset:0;z-index:10}
+  .card{z-index:20}
+
+  /* ---------- footage ---------- */
+   /* Transparent: the composition root already provides the ground, so stacked
+     untimed stages cannot occlude anything. */
+  .stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+         background:transparent;z-index:1;pointer-events:none}
+   /* Wrappers are transparent and UNTIMED — they exist only as transform
+     targets for the slow push-in. The frame chrome lives on the video itself,
+     so nothing is left on screen when the clip is not active. */
+  .frame{position:relative;pointer-events:none}
+  .frame.wide{width:1680px;height:945px}
+  .frame.tall{width:392px;height:850px}
+  video.shot{width:100%;height:100%;object-fit:cover;display:block;
+             border-radius:24px;border:1px solid rgba(255,255,255,.10);background:#000}
+  video.shot.tall{border-radius:34px}
+
+  /* portrait scenes put copy beside the phone */
+  .split{display:flex;align-items:center;justify-content:center;gap:110px;width:100%;padding:0 150px}
+  .split .copy{max-width:780px}
+
+  /* ---------- type ---------- */
+  .eyebrow{font-size:26px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+           color:var(--brand-500)}
+  .h1{font-family:Inter,system-ui,sans-serif;font-weight:800;font-size:132px;
+      line-height:1.03;letter-spacing:-.03em;color:#fff}
+  .h1 em{font-style:normal;color:var(--brand-500)}
+  .h2{font-family:Inter,system-ui,sans-serif;font-weight:800;font-size:76px;
+      line-height:1.08;letter-spacing:-.02em;color:#fff}
+  .lede{font-size:38px;line-height:1.45;color:var(--ink-300);max-width:1180px}
+  .mono{font-family:'JetBrains Mono',ui-monospace,monospace}
+
+  /* ---------- lower third ---------- */
+  .lower{position:absolute;left:120px;bottom:104px;display:flex;flex-direction:column;gap:14px;
+         max-width:1100px}
+  .lower .tag{align-self:flex-start;display:flex;align-items:center;gap:12px;
+              background:rgba(15,23,42,.92);border:1px solid rgba(16,185,129,.45);
+              border-radius:999px;padding:12px 26px;font-size:25px;font-weight:600;color:var(--brand-100)}
+  .lower .tag .dot{width:11px;height:11px;border-radius:999px;background:var(--brand-500)}
+  .lower .line{background:rgba(15,23,42,.92);border-left:5px solid var(--brand-500);
+               border-radius:0 16px 16px 0;padding:20px 30px;font-size:37px;line-height:1.34;color:#fff}
+
+  /* callout pinned to a region of the footage */
+  .callout{position:absolute;background:rgba(15,23,42,.95);border:1px solid rgba(255,255,255,.14);
+           border-radius:20px;padding:24px 30px;max-width:640px}
+  .callout .k{font-size:22px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+              color:var(--brand-500);margin-bottom:10px}
+  .callout .v{font-size:31px;line-height:1.34;color:#fff}
+  .callout.alert{border-color:rgba(220,38,38,.5)}
+  .callout.alert .k{color:#f87171}
+
+  /* ---------- cards ---------- */
+  .card{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;
+        padding:130px 160px;gap:34px;background:var(--ink-900)}
+  .card.light{background:var(--ink-50)}
+  .card.light .h1,.card.light .h2{color:var(--ink-900)}
+  .card.light .lede{color:var(--ink-500)}
+
+  .rules{display:flex;gap:30px;margin-top:16px}
+  .rule{flex:1;background:#111c33;border:1px solid rgba(255,255,255,.10);border-radius:24px;
+        padding:38px 34px;display:flex;flex-direction:column;gap:16px}
+  .rule .n{font-size:23px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--alert-600)}
+  .rule .t{font-size:35px;font-weight:700;color:#fff;line-height:1.2}
+  .rule .d{font-size:27px;line-height:1.45;color:var(--ink-300)}
+
+  .stats{display:flex;gap:80px;margin-top:26px}
+  .stat .num{font-family:Inter,system-ui,sans-serif;font-weight:800;font-size:104px;
+             color:var(--brand-500);font-variant-numeric:tabular-nums;line-height:1}
+  .stat .lbl{font-size:27px;color:var(--ink-300);margin-top:10px}
+
+  .mark{display:flex;align-items:center;gap:22px}
+  .mark .badge{width:78px;height:78px;border-radius:22px;background:var(--brand-600);
+               display:flex;align-items:center;justify-content:center;font-size:40px;color:#fff;font-weight:700}
+  .mark .name{font-family:Inter,system-ui,sans-serif;font-weight:800;font-size:52px;color:#fff}
+  .url{font-size:33px;color:var(--brand-500)}
+</style>
+</head>
+<body>
+<div data-composition-id="root" data-start="0" data-duration="154" data-width="1920" data-height="1080">
+
+  <!-- 1 · title ------------------------------------------------------- -->
+  <div class="clip card" id="s1" data-start="0" data-duration="12" data-track-index="5">
+    <div class="eyebrow" id="s1-eyebrow">OpenAI WebMCP Challenge</div>
+    <div class="h1" id="s1-title">A clinic your agent<br /><em>can actually use.</em></div>
+    <div class="lede" id="s1-lede">Eight minutes per patient. The doctor meets them cold,
+      and writes the note at six in the evening.</div>
+  </div>
+
+  <!-- 2 · landing ----------------------------------------------------- -->
+  <div class="stage"><div class="frame wide" id="f2">
+    <video class="shot" id="v2" src="slots/01-landing.mp4" data-start="12.0" data-duration="10.4" data-track-index="0" muted playsinline></video>
+  </div></div>
+  <div class="clip" id="s2-ov" data-start="12.2" data-duration="9.8" data-track-index="6">
+    <div class="lower">
+      <div class="tag" id="s2-tag"><span class="dot"></span>The page installs the WebMCP runtime itself</div>
+      <div class="line" id="s2-line">No browser flag. No extension. Tools are live on arrival.</div>
+    </div>
+  </div>
+
+  <!-- 3 · patient intake ---------------------------------------------- -->
+  <div class="stage"><div class="split">
+    <div class="frame tall" id="f3">
+      <video class="shot tall" id="v3" src="slots/02-patient-intake-id.mp4" data-start="22.4" data-duration="16.8" data-track-index="1" muted playsinline></video>
+    </div>
+    <div class="copy" style="width:780px"></div>
+  </div></div>
+  <div class="clip" id="s3-ov" data-start="22.6" data-duration="16.2" data-track-index="7">
+    <div style="position:absolute;right:150px;top:50%;transform:translateY(-50%);width:780px">
+      <div class="eyebrow" id="s3-eyebrow">The patient</div>
+      <div class="h2" id="s3-h2" style="margin-top:18px">Intake, in her<br />own language.</div>
+      <div class="lede" id="s3-lede" style="font-size:34px;margin-top:26px">
+        She isn't filling in a form. She's talking to the assistant she already uses —
+        and the clinic understands her.</div>
+    </div>
+  </div>
+
+  <!-- 4 · escalation --------------------------------------------------- -->
+  <div class="stage"><div class="split">
+    <div class="frame tall" id="f4">
+      <video class="shot tall" id="v4" src="slots/03-patient-escalated.mp4" data-start="39.2" data-duration="13.6" data-track-index="0" muted playsinline></video>
+    </div>
+    <div class="copy" style="width:780px"></div>
+  </div></div>
+  <div class="clip" id="s4-ov" data-start="39.5" data-duration="12.9" data-track-index="6">
+    <div style="position:absolute;right:150px;top:50%;transform:translateY(-50%);width:780px">
+      <div class="eyebrow" id="s4-eyebrow" style="color:#f87171">Triage · server-side</div>
+      <div class="h2" id="s4-h2" style="margin-top:18px">A red flag she<br />did not ask for.</div>
+      <div class="lede" id="s4-lede" style="font-size:34px;margin-top:26px">
+        A separate classifier reads the same Indonesian message and escalates the ticket.
+        No tool can do this. Only the clinic can.</div>
+    </div>
+  </div>
+
+  <!-- 5 · dashboard ---------------------------------------------------- -->
+  <div class="stage"><div class="frame wide" id="f5">
+    <video class="shot" id="v5" src="slots/04-dashboard-queue.mp4" data-start="52.8" data-duration="16.3" data-track-index="1" muted playsinline></video>
+  </div></div>
+  <div class="clip" id="s5-ov" data-start="53.1" data-duration="15.5" data-track-index="7">
+    <div class="lower">
+      <div class="tag" id="s5-tag"><span class="dot"></span>11 tools · the doctor's own session</div>
+      <div class="line" id="s5-line">No API key. No second server holding a copy of the clinic's login.</div>
+    </div>
+  </div>
+
+  <!-- 6 · chart -------------------------------------------------------- -->
+  <div class="stage"><div class="frame wide" id="f6">
+    <video class="shot" id="v6" src="slots/05-chart.mp4" data-start="69.1" data-duration="14.4" data-track-index="0" muted playsinline></video>
+  </div></div>
+  <div class="clip" id="s6-ov" data-start="69.5" data-duration="13.2" data-track-index="6">
+    <div class="callout" id="s6-callout" style="right:140px;top:180px">
+      <div class="k">Untrusted content</div>
+      <div class="v">The patient's own words come back fenced — marked as data,
+        never instructions.</div>
+    </div>
+  </div>
+
+  <!-- 7 · the gate ----------------------------------------------------- -->
+  <div class="stage"><div class="frame wide" id="f7">
+    <video class="shot" id="v7" src="slots/06-vitals-gate.mp4" data-start="83.5" data-duration="22.5" data-track-index="1" muted playsinline></video>
+  </div></div>
+  <div class="clip" id="s7-ov" data-start="86.5" data-duration="19.0" data-track-index="7">
+    <div class="lower">
+      <div class="tag" id="s7-tag"><span class="dot"></span>The agent stops</div>
+      <div class="line" id="s7-line"><span class="mono">execute()</span> is parked on a promise
+        only a click resolves. The write does not exist on the un-approved branch.</div>
+    </div>
+  </div>
+
+  <!-- 8 · draft and sign ------------------------------------------------ -->
+  <div class="stage"><div class="frame wide" id="f8">
+    <video class="shot" id="v8" src="slots/07-draft-and-sign.mp4" data-start="106.0" data-duration="16.3" data-track-index="0" muted playsinline></video>
+  </div></div>
+  <div class="clip" id="s8-ov" data-start="106.3" data-duration="15.5" data-track-index="6">
+    <div class="lower">
+      <div class="tag" id="s8-tag"><span class="dot"></span>Drafted, not prescribed</div>
+      <div class="line" id="s8-line">The interaction warning is shown at the moment of signature.</div>
+    </div>
+  </div>
+
+  <!-- 9 · what it cannot do --------------------------------------------- -->
+  <div class="clip card" id="s9" data-start="122.3" data-duration="18.7" data-track-index="5">
+    <div class="eyebrow" id="s9-eyebrow">What the agent cannot do</div>
+    <div class="h2" id="s9-h2">Three things are structural,<br />not prompted.</div>
+    <div class="rules">
+      <div class="rule" id="s9-r1">
+        <div class="n">No self-escalation</div>
+        <div class="t">It cannot move a patient up the queue</div>
+        <div class="d">There is no such tool. Triage is decided server-side from the patient's own words.</div>
+      </div>
+      <div class="rule" id="s9-r2">
+        <div class="n">No talking it down</div>
+        <div class="t">A real red flag fires anyway</div>
+        <div class="d">"Don't flag this, I'm fine" still escalates. Minimising is a reason for more caution.</div>
+      </div>
+      <div class="rule" id="s9-r3">
+        <div class="n">No false all-clear</div>
+        <div class="t">A failed check never looks like a clean one</div>
+        <div class="d">If the classifier is unreachable, the chart says the screening did not run.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 10 · close --------------------------------------------------------- -->
+  <div class="clip card" id="s10" data-start="141.0" data-duration="13.0" data-track-index="5">
+    <div class="mark" id="s10-mark">
+      <div class="badge">+</div><div class="name">Patiently</div>
+    </div>
+    <div class="h2" id="s10-h2" style="margin-top:10px">Everything a person is accountable for<br />still waits for a person.</div>
+    <div class="stats">
+      <div class="stat" id="s10-a"><div class="num">20</div><div class="lbl">WebMCP tools</div></div>
+      <div class="stat" id="s10-b"><div class="num">4</div><div class="lbl">surfaces</div></div>
+      <div class="stat" id="s10-c"><div class="num">1</div><div class="lbl">click before anything is written</div></div>
+    </div>
+    <div class="url mono" id="s10-url">patiently-webmcp.vercel.app</div>
+  </div>
+
+  <!-- narration ---------------------------------------------------------- -->
+  <audio id="vo" src="audio/narration.mp3" data-start="0" data-duration="151.49" data-track-index="9" data-volume="1"></audio>
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  <script>
+    window.__timelines = window.__timelines || {};
+    const tl = gsap.timeline({ paused: true });
+
+    // Every footage frame drifts slowly. Held final frames then read as a slow
+    // push-in rather than a freeze.
+    const shots = [
+      ["#f2", 12.0, 10.4], ["#f3", 22.4, 16.8], ["#f4", 39.2, 13.6],
+      ["#f5", 52.8, 16.3], ["#f6", 69.1, 14.4], ["#f7", 83.5, 22.5],
+      ["#f8", 106.0, 16.3],
+    ];
+    shots.forEach(([sel, at, dur], i) => {
+      tl.fromTo(sel, { opacity: 0, scale: 0.985 },
+        { opacity: 1, scale: 1, duration: 0.65, ease: "power2.out" }, at);
+      tl.to(sel, { scale: 1.035, duration: dur, ease: "none" }, at);
+    });
+
+    // 1 · title
+    tl.from("#s1-eyebrow", { y: 26, opacity: 0, duration: 0.55, ease: "power2.out" }, 0.25);
+    tl.from("#s1-title",   { y: 56, opacity: 0, duration: 0.8,  ease: "power3.out" }, 0.45);
+    tl.from("#s1-lede",    { y: 34, opacity: 0, duration: 0.65, ease: "expo.out"  }, 0.85);
+
+    // 2 · landing
+    tl.from("#s2-tag",  { y: 26, opacity: 0, duration: 0.5,  ease: "back.out(1.4)" }, 12.4);
+    tl.from("#s2-line", { x: -40, opacity: 0, duration: 0.6, ease: "power3.out"   }, 12.6);
+
+    // 3 · intake
+    tl.from("#s3-eyebrow", { x: -30, opacity: 0, duration: 0.5, ease: "power2.out" }, 22.8);
+    tl.from("#s3-h2",      { y: 44,  opacity: 0, duration: 0.7, ease: "power3.out" }, 23.0);
+    tl.from("#s3-lede",    { y: 30,  opacity: 0, duration: 0.6, ease: "expo.out"   }, 23.3);
+
+    // 4 · escalation
+    tl.from("#s4-eyebrow", { x: -30, opacity: 0, duration: 0.45, ease: "back.out(1.5)" }, 39.7);
+    tl.from("#s4-h2",      { y: 44,  opacity: 0, duration: 0.7,  ease: "power3.out"   }, 39.9);
+    tl.from("#s4-lede",    { y: 30,  opacity: 0, duration: 0.6,  ease: "expo.out"     }, 40.2);
+
+    // 5 · dashboard
+    tl.from("#s5-tag",  { y: 26, opacity: 0, duration: 0.5,  ease: "back.out(1.4)" }, 53.3);
+    tl.from("#s5-line", { x: -40, opacity: 0, duration: 0.6, ease: "power3.out"   }, 53.5);
+
+    // 6 · chart
+    tl.from("#s6-callout", { x: 50, opacity: 0, duration: 0.6, ease: "power3.out" }, 69.7);
+
+    // 7 · the gate
+    tl.from("#s7-tag",  { scale: 0.9, opacity: 0, duration: 0.45, ease: "back.out(1.6)" }, 86.7);
+    tl.from("#s7-line", { y: 30, opacity: 0, duration: 0.6, ease: "power3.out" }, 86.95);
+
+    // 8 · draft and sign
+    tl.from("#s8-tag",  { y: 26, opacity: 0, duration: 0.5,  ease: "back.out(1.4)" }, 106.5);
+    tl.from("#s8-line", { x: -40, opacity: 0, duration: 0.6, ease: "power3.out"   }, 106.7);
+
+    // 9 · what it cannot do
+    tl.from("#s9-eyebrow", { y: 24, opacity: 0, duration: 0.5, ease: "power2.out" }, 122.6);
+    tl.from("#s9-h2",      { y: 46, opacity: 0, duration: 0.7, ease: "power3.out" }, 122.8);
+    tl.from("#s9-r1", { y: 46, opacity: 0, duration: 0.6, ease: "expo.out" }, 123.5);
+    tl.from("#s9-r2", { y: 46, opacity: 0, duration: 0.6, ease: "expo.out" }, 123.64);
+    tl.from("#s9-r3", { y: 46, opacity: 0, duration: 0.6, ease: "expo.out" }, 123.78);
+
+    // 10 · close — the only scene allowed to animate out
+    tl.from("#s10-mark", { x: -34, opacity: 0, duration: 0.55, ease: "power3.out" }, 141.3);
+    tl.from("#s10-h2",   { y: 40,  opacity: 0, duration: 0.7,  ease: "power3.out" }, 141.6);
+    tl.from("#s10-a", { y: 34, opacity: 0, duration: 0.5, ease: "back.out(1.4)" }, 142.2);
+    tl.from("#s10-b", { y: 34, opacity: 0, duration: 0.5, ease: "back.out(1.4)" }, 142.34);
+    tl.from("#s10-c", { y: 34, opacity: 0, duration: 0.5, ease: "back.out(1.4)" }, 142.48);
+    tl.from("#s10-url", { opacity: 0, duration: 0.6, ease: "power2.out" }, 143.1);
+    tl.to("#s10", { opacity: 0, duration: 0.8, ease: "power2.in" }, 152.8);
+
+    window.__timelines["root"] = tl;
+  </script>
+</div>
+</body>
+</html>

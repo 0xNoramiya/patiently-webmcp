@@ -1,0 +1,13 @@
+# Working media. Regenerate with ./build-slots.sh (needs media/) and ./build-vo.sh.
+# slots/ is all-intra H.264 for frame-exact seeking, which puts it past GitHub's
+# 100 MB file limit -- it is a build product, not a source.
+slots/
+render.log
+snapshots/
+frame-*.png
+
+# The render itself goes to YouTube, not into the repo.
+patiently-demo.mp4
+
+# Discarded voice takes. Only the two that make up line 03 (03d + 03h) are kept.
+audio/vo/03[abcefg].wav
