@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     DEMO_AUTO_RESTORE: bool = False
     #: Minutes the clinic must sit untouched before it is restored.
     DEMO_RESTORE_IDLE_MINUTES: int = 10
+    # Longer, because this one fires with patients still on the board.
+    DEMO_RESTORE_STALE_MINUTES: int = 45
     CORS_ORIGINS: str = "http://localhost:3000,http://localhost:8000"
 
     @property

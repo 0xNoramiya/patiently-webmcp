@@ -75,3 +75,30 @@ def test_a_never_seeded_database_is_seeded_rather_than_skipped():
     should not find an empty clinic."""
     src = inspect.getsource(demo_restore.restore_if_idle)
     assert "last_touch is None" in src or "if last_touch is not None" in src
+
+
+def test_an_abandoned_floor_is_eventually_restored_anyway():
+    """A stranded ticket must not freeze the clinic for the rest of judging.
+
+    Requiring an empty board was not enough on its own: anyone who calls a
+    patient in and closes the tab leaves that ticket in consultation forever,
+    the floor never drains again, and the restore silently stops running. The
+    stale window releases that, and must be strictly longer than the idle one so
+    it can never fire on someone who is simply reading the screen.
+    """
+    src = inspect.getsource(demo_restore.restore_if_idle)
+    assert "DEMO_RESTORE_STALE_MINUTES" in src, "no release for an abandoned floor"
+    stale = Settings.model_fields["DEMO_RESTORE_STALE_MINUTES"].default
+    idle = Settings.model_fields["DEMO_RESTORE_IDLE_MINUTES"].default
+    assert stale > idle, "the stale window must be longer than the idle window"
+    assert stale >= 30, "too short: this fires with patients still on the board"
+
+
+def test_being_called_in_counts_as_touching_the_floor():
+    """called_at is the only timestamp that moves when a patient is called in.
+
+    Without it, a ticket in consultation looks as old as the moment it was
+    issued, and an actively-used clinic could be judged abandoned.
+    """
+    src = inspect.getsource(demo_restore.restore_if_idle)
+    assert "called_at" in src

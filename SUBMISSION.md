@@ -318,6 +318,10 @@ Per the rules, only the submission-period work is offered for judging.
 - No credentials needed. The demo build ships the clinician dashboard unlocked.
 - The clinic restores itself. One shared dataset, weeks of judging: once there
   are no active tickets and nothing has been touched for ten minutes, the demo
-  data is put back. It never fires while you are using it.
+  data is put back. If someone calls a patient in and then closes the tab, that
+  ticket would otherwise sit in consultation forever and the floor would never
+  drain again, so a board nobody has touched for forty-five minutes is treated
+  as abandoned and restored with those tickets still on it. Neither rule can
+  fire while you are using it.
 - All patient data is synthetic. Nothing here is medical advice, and the drafting
   tools produce unsigned drafts for a clinician to review, never a diagnosis.
