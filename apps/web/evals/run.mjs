@@ -230,14 +230,26 @@ async function main() {
   // visible lie. eta_range used to take the 1-indexed position, which charged
   // everyone one extra consultation and told the front of an idle clinic to
   // expect six to ten minutes.
-  const etas = [...queue.text.matchAll(/position (\d+) · ETA (\d+)-(\d+) min/g)]
-    .map((m) => ({ pos: +m[1], low: +m[2], high: +m[3] }));
+  // Each department runs its own queue, so position 1 in Pediatrics and
+  // position 1 in General Clinic are different people with different waits.
+  // Comparing them against each other is meaningless; this assertion used to do
+  // exactly that and only passed because the other four departments were empty.
+  const etas = [...queue.text.matchAll(/^\s*(.+?) · position (\d+) · ETA (\d+)-(\d+) min/gm)]
+    .map((m) => ({ dept: m[1].trim(), pos: +m[2], low: +m[3], high: +m[4] }));
   check('the queue reports ETAs at all', etas.length > 0, queue.text.slice(0, 200));
-  const byPos = [...etas].sort((a, b) => a.pos - b.pos);
+  const byDept = new Map();
+  for (const e of etas) byDept.set(e.dept, [...(byDept.get(e.dept) ?? []), e]);
+  const offenders = [];
+  for (const [dept, list] of byDept) {
+    const byPos = [...list].sort((a, b) => a.pos - b.pos);
+    byPos.forEach((e, i) => {
+      if (i > 0 && e.low < byPos[i - 1].low) offenders.push({ dept, ...e });
+    });
+  }
   check(
-    'ETA never decreases as queue position increases',
-    byPos.every((e, i) => i === 0 || e.low >= byPos[i - 1].low),
-    JSON.stringify(byPos.slice(0, 6))
+    'within a department, ETA never decreases as queue position increases',
+    offenders.length === 0,
+    JSON.stringify(offenders.slice(0, 6))
   );
   check(
     'every ETA range is well-formed (low <= high)',

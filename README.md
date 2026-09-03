@@ -88,7 +88,7 @@ baseline commit: **26 commits, 32 new files, 50 modified, +7,169 / −899 lines.
 | **Human-in-the-loop UI** | Blocking approval dialog, live agent activity panel, header status pill | `components/AgentActivityPanel.tsx` |
 | | Patient-side agent badge | `app/p/[ticket]/patient-agent-badge.tsx` |
 | **Discovery** | `llms.txt`, `/.well-known/webmcp` manifest, robots, sitemap, OG/Twitter images | `app/llms.txt/`, `app/webmcp-manifest/`, `app/robots.ts`, `app/sitemap.ts`, `app/opengraph-image.tsx`, `app/twitter-image.tsx` |
-| **Evals** | 91 structural assertions, a 32-assertion live workflow, 12 prompt-injection attacks | `evals/run.mjs`, `walkthrough.mjs`, `injection.mjs` |
+| **Evals** | 94 structural assertions, a 35-assertion live consultation, 12 prompt-injection attacks, 12 bilingual assertions | `evals/run.mjs`, `walkthrough.mjs`, `injection.mjs`, `bilingual.mjs` |
 | **Backend** | Every agent moved onto one OpenAI client with Structured Outputs, per-model dialects and degradation markers | `app/integrations/openai_client.py` |
 | | OpenAI TTS, replacing a dead EdgeTTS dependency | `app/integrations/openai_tts.py` |
 | | Triage input fencing, degradation propagation, summariser guard, upload validation, security headers, PDF text sanitising | 50 modified files across `app/` |
