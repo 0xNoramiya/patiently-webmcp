@@ -296,22 +296,93 @@ disagree with me to try it and say where it is wrong.
 
 ---
 
-## Provenance (disclosure)
+## What was updated during the submission period
 
-The clinical platform pre-dates this challenge. The queue engine, multi-agent
-intake, triage classifier, SOAP and prescription drafting, interaction checking,
-vitals and PDF export were built in May 2026 for a different hackathon.
+*(This is the answer to the Devpost "If existing, explain what you updated
+during the submission period" field.)*
 
-Every line of WebMCP work is new and was built during the submission period: 26
-commits, 32 new files, 50 modified, +7,169 / -899 lines, all after the baseline
-commit. The repository's first commit is that untouched baseline, so the split is
-verifiable directly:
+Patiently existed before this challenge, and had no agent interface of any kind.
+The clinical platform, meaning the queue engine, multi-agent intake, triage
+classifier, SOAP and prescription drafting, interaction checking, vitals and PDF
+export, was built in May 2026 for a different hackathon.
+
+Everything to do with WebMCP is new and was written during the submission
+period. The repository's first commit is that untouched pre-challenge baseline,
+so the split is verifiable in one command:
 
 ```bash
 git diff --stat $(git log --format=%H --reverse | head -1) HEAD
 ```
 
+At the time of writing that is 44 commits and 155 files: 103 files of
+application code (+8,609 / -931 lines, 41 added and 59 modified) plus 52 files
+of demo material, meaning the video composition and thumbnail sources.
+
+Built during the period:
+
+- All 20 WebMCP tools, across four surfaces, registered per page.
+- The registration adapter, namespace shim, and a bundled runtime so the tools
+  register in browsers with no native `document.modelContext`.
+- The declarative form tool, using `toolname` / `tooldescription` /
+  `toolparamdescription`, deliberately without `toolautosubmit`.
+- The read / draft / commit tiering, expressed in tool annotations.
+- The blocking approval dialog, and the approval queue behind it whose outcome
+  is a union of `approved` / `declined` / `expired` / `cancelled`.
+- Untrusted-content fencing in both directions, plus `untrustedContentHint`.
+- Discovery: `/llms.txt`, `/.well-known/webmcp`, robots with AI crawler rules,
+  sitemap, JSON-LD and Open Graph.
+- Consolidation of two previous model providers onto a single OpenAI client with
+  Structured Outputs, per-model dialect handling and degradation markers.
+- Four eval suites that drive the real `document.modelContext` in a real browser
+  against the deployed site, and the removal of the last test stub.
+- The demo clinic's self-restore, so one shared dataset survives weeks of
+  judging.
+
+Bugs found and fixed during the period, all in the pre-existing platform, and
+all found by testing the failure direction rather than the happy path: an
+injectable triage classifier that could be made to fire a cardiac red flag by
+typing "SYSTEM OVERRIDE" into a symptom box; black boxes rendered over text in
+generated PDFs, including the line marking a critical result; an ETA that
+charged every patient one consultation too many; a missing respiratory-rate
+floor; an ACE inhibitor plus ARB interaction that never fired; upload MIME
+spoofing; and a degraded triage screen that was indistinguishable from a clean
+one.
+
 Per the rules, only the submission-period work is offered for judging.
+
+## Clients the tools were tested with
+
+- **ChatGPT's in-app browser**, where WebMCP is on by default. This is the
+  primary target and the one the demo is written for.
+- **Chrome 149+** with `chrome://flags/#enable-webmcp-testing`, using the
+  browser's native `document.modelContext` rather than the bundled runtime.
+- **The WebMCP Inspector extension**, used to check tool discovery, annotations
+  and the published manifest.
+- **Playwright-driven Chromium**, running the site's own bundled runtime. This
+  is what the four eval suites use, so every assertion runs against a real
+  browser and a real `document.modelContext` rather than a mock.
+
+## AI tools used to build this
+
+- **Claude Code (Claude Opus 5)** for the implementation, debugging, eval
+  suites, documentation, and the demo video and thumbnail composition.
+- **OpenAI gpt-4.1** for patient intake and clinical drafting, and
+  **gpt-4.1-mini** pinned at `temperature=0` for the triage classifier, because
+  a red-flag decision that cannot be reproduced cannot be audited.
+- **OpenAI gpt-4o-mini-tts** for patient-facing speech.
+- **OpenAI Whisper** to transcribe every line of the demo narration back and
+  diff it against the script, which caught five takes of fluent-sounding
+  nonsense that a duration check would have passed.
+- **Higgsfield** (`seed_audio`) for the demo narration voice, and Recraft V4.1
+  for thumbnail artwork that was generated and then rejected: it produced a
+  convincing but fake clinical dialog reading "Respiratory' rate" and titled
+  "Vital signs recorded", which is the opposite of what this project does. The
+  final thumbnail uses real screenshots.
+- **HyperFrames** for the demo video, which is authored as HTML and rendered.
+
+GPT-5 was evaluated for the clinical agents and rejected on latency: 20.6 s to
+write a chest-pain SOAP note against gpt-4.1's 3.0 s, for the same clinical
+content.
 
 ## Testing notes for judges
 
