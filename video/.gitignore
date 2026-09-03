@@ -11,3 +11,13 @@ patiently-demo.mp4
 
 # Discarded voice takes. Only the two that make up line 03 (03d + 03h) are kept.
 audio/vo/03[abcefg].wav
+
+# Render scratch. hyperframes writes these next to the composition.
+work-*/
+
+# Thumbnail intermediates. The deliverables (thumb/cand-*.png|jpg) and their
+# sources (thumb/gen/, thumb/dialog.png, build-thumb.py) are committed; the
+# cand-*.html files just inline those as base64 and rebuild in a second.
+thumb/_*
+thumb/cand-*.html
+thumb/gen/*.svg
